@@ -3,7 +3,7 @@ import 'package:smart_farm/core/constants/app_fonts.dart';
 import 'package:smart_farm/core/constants/theme/app_color.dart';
 import 'package:smart_farm/core/constants/theme/app_theme.dart';
 import 'package:smart_farm/features/authentication/presentation/screens/login_screen.dart';
-import 'package:smart_farm/features/home.dart/presentation/widgets/home_screen.dart';
+import 'package:smart_farm/features/home.dart/presentation/screens/home_screen.dart';
 import 'package:smart_farm/features/onboarding/data/onboarding_model_impl.dart';
 import 'package:smart_farm/features/onboarding/presentation/screens/get_started.dart';
 
