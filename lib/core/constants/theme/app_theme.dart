@@ -82,12 +82,7 @@ class AppThemes {
       floatingLabelStyle: const TextStyle(color: AppColors.primaryGreen),
     ),
     // Card theme
-    cardTheme: CardTheme(
-      color: AppColors.background, // White cards
-      elevation: 2,
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-      margin: const EdgeInsets.all(8),
-    ),
+
     // Icon theme
     iconTheme: const IconThemeData(
       color: AppColors.primaryText, // Default icon color
@@ -189,12 +184,7 @@ class AppThemes {
       floatingLabelStyle: const TextStyle(color: AppColors.primaryGreen),
     ),
     // Card theme
-    cardTheme: CardTheme(
-      color: const Color(0xFF1F1F1F), // Darker cards
-      elevation: 2,
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-      margin: const EdgeInsets.all(8),
-    ),
+
     // Icon theme
     iconTheme: const IconThemeData(
       color: AppColors.background, // White icons

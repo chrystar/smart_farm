@@ -1,81 +1,123 @@
-import 'dart:convert';
-import 'package:http/http.dart' as http;
-import 'package:smart_farm/core/config/api_config.dart';
+import 'package:smart_farm/core/services/supabase_service.dart';
 import '../models/user_model.dart';
 
 abstract class AuthRemoteDataSource {
   Future<UserModel> register({
     required String name,
-    required String phoneNumber,
+    required String email,
     required String password,
   });
 
   Future<Map<String, dynamic>> login({
-    required String phoneNumber,
+    required String email,
     required String password,
   });
+
+  Future<UserModel> getUserProfile(String userId);
+
+  Future<void> logout();
 }
 
 class AuthRemoteDataSourceImpl implements AuthRemoteDataSource {
-  final http.Client client;
+  final SupabaseService supabaseService;
 
   AuthRemoteDataSourceImpl({
-    required this.client,
+    required this.supabaseService,
   });
 
   @override
   Future<UserModel> register({
     required String name,
-    required String phoneNumber,
+    required String email,
     required String password,
   }) async {
     try {
-      final response = await client.post(
-        Uri.parse(ApiConfig.baseUrl + ApiConfig.register),
-        headers: {'Content-Type': 'application/json'},
-        body: json.encode({
+      // Sign up user with email (using phoneNumber as email for now)
+      final authResponse = await supabaseService.signUp(
+        email: email,
+        password: password,
+        userData: {
           'name': name,
-          'phoneNumber': phoneNumber,
-          'password': password,
-        }),
+          'email': email,
+        },
       );
 
-      if (response.statusCode == 201) {
-        final Map<String, dynamic> data = json.decode(response.body);
-        return UserModel.fromJson(data['data']['user']);
-      } else {
-        final Map<String, dynamic> error = json.decode(response.body);
-        throw Exception(error['message'] ?? 'Registration failed');
+      final userId = authResponse.user?.id;
+      if (userId == null) {
+        throw Exception('Failed to register user');
       }
+
+      // Create user profile in database
+      await supabaseService.createUserProfile(userId, {
+        'name': name,
+        'email': email,
+      });
+
+      return UserModel(
+        id: userId,
+        name: name,
+        email: email,
+      );
     } catch (e) {
-      throw Exception('Failed to register: ${e.toString()}');
+      throw Exception('Registration failed: ${e.toString()}');
     }
   }
 
   @override
   Future<Map<String, dynamic>> login({
-    required String phoneNumber,
+    required String email,
     required String password,
   }) async {
     try {
-      final response = await client.post(
-        Uri.parse(ApiConfig.baseUrl + ApiConfig.login),
-        headers: {'Content-Type': 'application/json'},
-        body: json.encode({
-          'phoneNumber': phoneNumber,
-          'password': password,
-        }),
+      final authResponse = await supabaseService.signIn(
+        email: email,
+        password: password,
       );
 
-      final Map<String, dynamic> data = json.decode(response.body);
-      
-      if (response.statusCode == 200 && data['success']) {
-        return data['data'];
-      } else {
-        throw Exception(data['message'] ?? 'Login failed');
+      final userId = authResponse.user?.id;
+      final sessionToken = authResponse.session?.accessToken;
+      final authEmail = authResponse.user?.email;
+
+      if (userId == null || sessionToken == null) {
+        throw Exception('Login failed');
       }
+
+      // Fetch user profile
+      final userProfile = await supabaseService.getUserProfile(userId);
+
+      return {
+        'token': sessionToken,
+        'user': {
+          'id': userId,
+          'name': userProfile?['name'] ?? '',
+          'email': userProfile?['email'] ?? authEmail ?? '',
+        }
+      };
     } catch (e) {
-      throw Exception('Failed to login: ${e.toString()}');
+      throw Exception('Login failed: ${e.toString()}');
     }
   }
-} 
+
+  @override
+  Future<UserModel> getUserProfile(String userId) async {
+    try {
+      final profile = await supabaseService.getUserProfile(userId);
+      return UserModel(
+        id: userId,
+        name: profile?['name'] ?? '',
+        email: profile?['email'] ?? '',
+      );
+    } catch (e) {
+      throw Exception('Failed to fetch user profile: ${e.toString()}');
+    }
+  }
+
+  @override
+  Future<void> logout() async {
+    try {
+      await supabaseService.signOut();
+    } catch (e) {
+      throw Exception('Logout failed: ${e.toString()}');
+    }
+  }
+}

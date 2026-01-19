@@ -1,6 +1,11 @@
 import 'dart:async';
 
 import 'package:flutter/material.dart';
+import 'package:provider/provider.dart';
+import 'package:smart_farm/app.dart';
+import 'package:smart_farm/core/services/preferences_service.dart';
+import 'package:smart_farm/features/authentication/presentation/provider/auth_provider.dart';
+import 'package:smart_farm/features/authentication/presentation/screens/getstarted.dart';
 import 'package:smart_farm/features/onboarding/presentation/screens/onboarding_screen.dart';
 
 class SplashScreen extends StatefulWidget {
@@ -14,12 +19,33 @@ class _SplashScreenState extends State<SplashScreen> {
   @override
   void initState() {
     super.initState();
-    // Simulate a delay for splash (e.g., 2 seconds), then navigate to Home
-    Timer(const Duration(seconds: 2), () {
-      Navigator.of(context).pushReplacement(
-        MaterialPageRoute(builder: (context) => const OnboardingScreen()),
-      );
-    });
+    _bootstrap();
+  }
+
+  Future<void> _bootstrap() async {
+    // allow splash to breathe a little
+    await Future.delayed(const Duration(milliseconds: 300));
+
+    final prefs = PreferencesService();
+    final hasOnboarded = await prefs.getHasOnboarded();
+
+    final auth = Provider.of<AuthProvider>(context, listen: false);
+    await auth.initializeAuth();
+
+    if (!mounted) return;
+
+    Widget next;
+    if (!hasOnboarded) {
+      next = const OnboardingScreen();
+    } else if (auth.isAuthenticated) {
+      next = const App();
+    } else {
+      next = const GetStartedScreen();
+    }
+
+    Navigator.of(context).pushReplacement(
+      MaterialPageRoute(builder: (_) => next),
+    );
   }
 
   @override

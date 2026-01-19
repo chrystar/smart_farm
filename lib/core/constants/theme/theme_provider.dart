@@ -1,5 +1,4 @@
 import 'package:flutter/material.dart';
-import 'app_theme.dart';
 
 /// ThemeProvider is a ChangeNotifier that manages the app's theme mode (light or dark).
 ///

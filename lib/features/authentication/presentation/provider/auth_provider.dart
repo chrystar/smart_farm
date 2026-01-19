@@ -3,12 +3,17 @@ import 'package:flutter/foundation.dart';
 import 'package:smart_farm/core/services/storage_service.dart';
 import '../../domain/entities/user.dart';
 import '../../domain/usecases/register_usecase.dart';
+import '../../domain/usecases/login_usecase.dart';
 
 class AuthProvider extends ChangeNotifier {
   final RegisterUseCase _registerUseCase;
+  final LoginUseCase _loginUseCase;
   final StorageService _storageService;
 
-  AuthProvider(this._registerUseCase) : _storageService = StorageService();
+  AuthProvider(
+    this._registerUseCase,
+    this._loginUseCase,
+  ) : _storageService = StorageService();
 
   bool _isLoading = false;
   String? _error;
@@ -34,7 +39,7 @@ class AuthProvider extends ChangeNotifier {
 
   Future<bool> register({
     required String name,
-    required String phoneNumber,
+    required String email,
     required String password,
   }) async {
     _isLoading = true;
@@ -43,7 +48,7 @@ class AuthProvider extends ChangeNotifier {
 
     final result = await _registerUseCase(
       name: name,
-      phoneNumber: phoneNumber,
+      email: email,
       password: password,
     );
 
@@ -73,15 +78,56 @@ class AuthProvider extends ChangeNotifier {
     return success;
   }
 
+  Future<bool> login({
+    required String email,
+    required String password,
+  }) async {
+    _isLoading = true;
+    _error = null;
+    notifyListeners();
+
+    final result = await _loginUseCase(
+      email: email,
+      password: password,
+    );
+
+    bool success = false;
+    result.fold(
+      (failure) {
+        _error = failure.message;
+        _user = null;
+        _token = null;
+        success = false;
+      },
+      (user) async {
+        _user = user;
+        _token = user.token;
+
+        // Store user data
+        await _storageService.saveUserData(json.encode(user.toJson()));
+        // Store token
+        if (user.token != null) {
+          await _storageService.saveToken(user.token!);
+        }
+        _error = null;
+        success = true;
+      },
+    );
+
+    _isLoading = false;
+    notifyListeners();
+    return success;
+  }
+
   Future<void> logout() async {
     // Clear user data and token from storage
     await _storageService.clearAll();
-    
+
     // Clear in-memory data
     _user = null;
     _token = null;
     _error = null;
-    
+
     notifyListeners();
   }
 
@@ -89,11 +135,11 @@ class AuthProvider extends ChangeNotifier {
   Future<void> setAuthData({required String token, required User user}) async {
     _token = token;
     _user = user;
-    
+
     // Store in secure storage
     await _storageService.saveToken(token);
     await _storageService.saveUserData(json.encode(user.toJson()));
-    
+
     notifyListeners();
   }
-} 
+}

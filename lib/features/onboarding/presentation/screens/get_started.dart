@@ -64,23 +64,23 @@ class _GetStartedState extends State<GetStarted>
                             fontWeight: FontWeight.w600),
                       ),
                       SizedBox(height: AppSizes.spaceM(context)),
-                      Text(
+                     const Text(
                         'Sign up or sign in below to manage, monitor and manage your poultry farm',
                         textAlign: TextAlign.center,
                       ),
                     ],
                   ),
                 ),
-                SizedBox(height: 20),
+               const SizedBox(height: 20),
                 TabBar(
                   controller: tabController,
-                  physics: NeverScrollableScrollPhysics(),
-                  tabs: [Tab(text: 'Login'), Tab(text: 'Sign Up')],
+                  physics: const NeverScrollableScrollPhysics(),
+                  tabs: const[Tab(text: 'Login'), Tab(text: 'Sign Up')],
                 ),
                 Expanded(
                   child: TabBarView(
                     controller: tabController,
-                    children: [LoginScreen(), RegisterScreen()],
+                    children: const [LoginScreen(), RegisterScreen()],
                   ),
                 ),
               ],

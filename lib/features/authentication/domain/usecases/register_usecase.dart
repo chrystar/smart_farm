@@ -10,12 +10,12 @@ class RegisterUseCase {
 
   Future<Either<Failure, User>> call({
     required String name,
-    required String phoneNumber,
+    required String email,
     required String password,
   }) {
     return repository.register(
       name: name,
-      phoneNumber: phoneNumber,
+      email: email,
       password: password,
     );
   }

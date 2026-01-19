@@ -1,15 +1,13 @@
 import 'package:flutter/material.dart';
+import 'package:go_router/go_router.dart';
 import 'package:provider/provider.dart';
 import 'package:smart_farm/core/constants/app_fonts.dart';
 import 'package:smart_farm/core/constants/app_size.dart';
 import 'package:smart_farm/core/constants/theme/app_color.dart';
-import 'package:smart_farm/features/authentication/data/datasourse/auth_remote_datasource.dart';
-import 'package:smart_farm/features/authentication/domain/entities/user.dart';
+import 'package:smart_farm/core/routing/app_router.dart';
 import 'package:smart_farm/features/authentication/presentation/provider/auth_provider.dart';
 import 'package:smart_farm/features/authentication/presentation/widgets/auth_button.dart';
 import 'package:smart_farm/features/authentication/presentation/widgets/textform.dart';
-import 'package:http/http.dart' as http;
-import 'package:smart_farm/features/home.dart/presentation/screens/home_screen.dart';
 
 class LoginScreen extends StatefulWidget {
   const LoginScreen({super.key});
@@ -20,23 +18,13 @@ class LoginScreen extends StatefulWidget {
 
 class _LoginScreenState extends State<LoginScreen> {
   final _formKey = GlobalKey<FormState>();
-  final _phoneController = TextEditingController();
+  final _emailController = TextEditingController();
   final _passwordController = TextEditingController();
-  bool _isLoading = false;
   bool _isPasswordVisible = false;
-  String? _errorMessage;
-
-  late final AuthRemoteDataSource _authDataSource;
-
-  @override
-  void initState() {
-    super.initState();
-    _authDataSource = AuthRemoteDataSourceImpl(client: http.Client());
-  }
 
   @override
   void dispose() {
-    _phoneController.dispose();
+    _emailController.dispose();
     _passwordController.dispose();
     super.dispose();
   }
@@ -46,167 +34,162 @@ class _LoginScreenState extends State<LoginScreen> {
       return;
     }
 
-    setState(() {
-      _isLoading = true;
-      _errorMessage = null;
-    });
+    final success = await context.read<AuthProvider>().login(
+          email: _emailController.text.trim(),
+          password: _passwordController.text,
+        );
 
-    try {
-      final result = await _authDataSource.login(
-        phoneNumber: _phoneController.text,
-        password: _passwordController.text,
+    if (success && mounted) {
+      // Navigate to home screen
+      context.go(AppRouter.homeRoute);
+    } else if (mounted) {
+      // Show error snackbar with detailed error
+      final authProvider = context.read<AuthProvider>();
+      final errorMsg = authProvider.error?.isNotEmpty == true
+          ? authProvider.error
+          : 'Login failed. Please check your credentials or network.';
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(errorMsg!),
+          backgroundColor: Colors.red,
+        ),
       );
-
-      if (!mounted) return;
-
-      // Create user object from response
-      final user = User(
-        id: result['user']['id'],
-        name: result['user']['name'],
-        phoneNumber: result['user']['phoneNumber'],
-        token: result['token'],
-      );
-
-      // Set auth data in provider
-      await context.read<AuthProvider>().setAuthData(
-        token: result['token'],
-        user: user,
-      );
-      
-      // Navigate to home screen and remove all previous routes
-      Navigator.pushAndRemoveUntil(
-        context,
-        MaterialPageRoute(builder: (context) => HomeScreen()),
-        (route) => false,
-      );
-    } catch (e) {
-      setState(() {
-        _errorMessage = e.toString();
-      });
-    } finally {
-      if (mounted) {
-        setState(() {
-          _isLoading = false;
-        });
-      }
     }
   }
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      backgroundColor: Colors.grey.shade200,
-      body: SingleChildScrollView(
-        child: Padding(
-          padding: EdgeInsets.only(left: 20, right: 20, top: 30),
-          child: Form(
-            key: _formKey,
-            child: Column(
-              children: [
-                authButton(
-                  icon: Icon(Icons.apple, size: 20, color: Colors.black),
-                  text: 'Login with Apple',
-                  color: AppColors.background,
-                  textColor: AppColors.primaryText,
-                ),
-                SizedBox(height: AppSizes.spaceS(context)),
-                authButton(
-                  icon: Icon(Icons.g_mobiledata, size: 20),
-                  color: AppColors.background,
-                  text: 'Login with Google',
-                  textColor: AppColors.primaryText,
-                ),
-
-                SizedBox(height: AppSizes.spaceXL(context)),
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceAround,
+    return Consumer<AuthProvider>(
+      builder: (context, authProvider, child) {
+        return Scaffold(
+          backgroundColor: Colors.grey.shade200,
+          body: SingleChildScrollView(
+            child: Padding(
+              padding: const EdgeInsets.only(left: 20, right: 20, top: 30),
+              child: Form(
+                key: _formKey,
+                child: Column(
                   children: [
-                    Container(width: 30, height: 2, color: Colors.green),
-                    Text('or continue with number'),
-                    Container(width: 30, height: 2, color: Colors.green),
+                    authButton(
+                      icon: const Icon(Icons.apple,
+                          size: 20, color: Colors.black),
+                      text: 'Login with Apple',
+                      color: AppColors.background,
+                      textColor: AppColors.primaryText,
+                    ),
+                    SizedBox(height: AppSizes.spaceS(context)),
+                    authButton(
+                      icon: const Icon(Icons.g_mobiledata, size: 20),
+                      color: AppColors.background,
+                      text: 'Login with Google',
+                      textColor: AppColors.primaryText,
+                    ),
+                    SizedBox(height: AppSizes.spaceXL(context)),
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceAround,
+                      children: [
+                        Container(width: 30, height: 2, color: Colors.green),
+                        const Text('or continue with email'),
+                        Container(width: 30, height: 2, color: Colors.green),
+                      ],
+                    ),
+                    SizedBox(height: AppSizes.spaceXL(context)),
+                    if (authProvider.error != null)
+                      Padding(
+                        padding: const EdgeInsets.only(bottom: 16),
+                        child: Container(
+                          padding: const EdgeInsets.all(12),
+                          decoration: BoxDecoration(
+                            color: Colors.red.shade50,
+                            border: Border.all(color: Colors.red),
+                            borderRadius: BorderRadius.circular(8),
+                          ),
+                          child: Text(
+                            authProvider.error!,
+                            style: const TextStyle(color: Colors.red),
+                          ),
+                        ),
+                      ),
+                    CustomTextFormField(
+                      controller: _emailController,
+                      hintText: "Enter Email",
+                      prefixIcon: const Icon(Icons.email),
+                      iconColor: AppColors.primaryText,
+                      keyboardType: TextInputType.emailAddress,
+                      validator: (value) {
+                        if (value == null || value.isEmpty) {
+                          return 'Please enter your email';
+                        }
+                        if (!value.contains('@')) {
+                          return 'Please enter a valid email';
+                        }
+                        return null;
+                      },
+                    ),
+                    SizedBox(height: AppSizes.spaceS(context)),
+                    CustomTextFormField(
+                      controller: _passwordController,
+                      hintText: "Enter password",
+                      prefixIcon: const Icon(Icons.password),
+                      suffixIcon: IconButton(
+                        icon: Icon(
+                          _isPasswordVisible
+                              ? Icons.visibility
+                              : Icons.visibility_off,
+                        ),
+                        onPressed: () {
+                          setState(() {
+                            _isPasswordVisible = !_isPasswordVisible;
+                          });
+                        },
+                      ),
+                      iconColor: AppColors.primaryText,
+                      obscureText: !_isPasswordVisible,
+                      validator: (value) {
+                        if (value == null || value.isEmpty) {
+                          return 'Please enter your password';
+                        }
+                        return null;
+                      },
+                    ),
+                    SizedBox(height: AppSizes.spaceL(context)),
+                    authProvider.isLoading
+                        ? const CircularProgressIndicator()
+                        : authButton(
+                            text: 'Login',
+                            color: AppColors.primaryGreen,
+                            onPressed: _handleLogin,
+                          ),
+                    SizedBox(height: AppSizes.spaceL(context)),
+                    Text.rich(
+                      textAlign: TextAlign.center,
+                      TextSpan(
+                        children: [
+                          const TextSpan(
+                              text: 'by signing in you agree to our '),
+                          TextSpan(
+                            text: 'terms and conditions ',
+                            style: AppFonts.text12normal(context,
+                                color: AppColors.primaryTextColor,
+                                fontWeight: FontWeight.bold),
+                          ),
+                          const TextSpan(text: 'and '),
+                          TextSpan(
+                            text: 'privacy policies',
+                            style: AppFonts.text12normal(context,
+                                color: AppColors.primaryTextColor,
+                                fontWeight: FontWeight.bold),
+                          )
+                        ],
+                      ),
+                    ),
                   ],
                 ),
-                SizedBox(height: AppSizes.spaceXL(context)),
-                
-                if (_errorMessage != null)
-                  Padding(
-                    padding: EdgeInsets.only(bottom: 16),
-                    child: Text(
-                      _errorMessage!,
-                      style: TextStyle(color: Colors.red),
-                    ),
-                  ),
-
-                CustomTextFormField(
-                  controller: _phoneController,
-                  hintText: "Enter Phone Number",
-                  prefixIcon: Icon(Icons.phone),
-                  iconColor: AppColors.primaryText,
-                  keyboardType: TextInputType.phone,
-                  validator: (value) {
-                    if (value == null || value.isEmpty) {
-                      return 'Please enter your phone number';
-                    }
-                    return null;
-                  },
-                ),
-                SizedBox(height: AppSizes.spaceS(context)),
-                CustomTextFormField(
-                  controller: _passwordController,
-                  hintText: "Enter password",
-                  prefixIcon: Icon(Icons.password),
-                  suffixIcon: IconButton(
-                    icon: Icon(
-                      _isPasswordVisible ? Icons.visibility : Icons.visibility_off,
-                    ),
-                    onPressed: () {
-                      setState(() {
-                        _isPasswordVisible = !_isPasswordVisible;
-                      });
-                    },
-                  ),
-                  iconColor: AppColors.primaryText,
-                  obscureText: !_isPasswordVisible,
-                  validator: (value) {
-                    if (value == null || value.isEmpty) {
-                      return 'Please enter your password';
-                    }
-                    return null;
-                  },
-                ),
-                SizedBox(height: AppSizes.spaceL(context)),
-
-                _isLoading
-                    ? CircularProgressIndicator()
-                    : authButton(
-                        text: 'Login',
-                        color: AppColors.primaryGreen,
-                        onPressed: _handleLogin,
-                      ),
-
-                SizedBox(height: AppSizes.spaceL(context)),
-                Text.rich(
-                  textAlign: TextAlign.center,
-                  TextSpan(                
-                    children: [
-                      TextSpan(text: 'by signing up you agree to '),
-                      TextSpan(
-                        text: 'our terms and conditions ',
-                        style: AppFonts.text12normal(context, color: AppColors.primaryTextColor, fontWeight: FontWeight.bold),
-                      ),
-                      TextSpan(text: 'and  '),
-                      TextSpan(
-                        text: 'private policies',
-                        style: AppFonts.text12normal(context, color: AppColors.primaryTextColor, fontWeight: FontWeight.bold)
-                      )
-                    ],
-                  ),
-                ),
-              ],
+              ),
             ),
           ),
-        ),
-      ),
+        );
+      },
     );
   }
 }

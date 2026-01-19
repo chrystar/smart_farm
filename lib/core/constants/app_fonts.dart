@@ -1,7 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:smart_farm/core/constants/app_size.dart';
-import 'package:smart_farm/core/constants/theme/app_color.dart';
 
 class AppFonts {
   static TextStyle text24normal(BuildContext context, {

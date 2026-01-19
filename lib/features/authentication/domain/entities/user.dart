@@ -1,13 +1,13 @@
 class User {
   final String id;
   final String name;
-  final String phoneNumber;
+  final String email;
   final String? token;
 
   User({
     required this.id,
     required this.name,
-    required this.phoneNumber,
+    required this.email,
     this.token,
   });
 
@@ -15,7 +15,7 @@ class User {
     return User(
       id: json['id'],
       name: json['name'],
-      phoneNumber: json['phoneNumber'],
+      email: json['email'],
       token: json['token'],
     );
   }
@@ -24,7 +24,7 @@ class User {
     return {
       'id': id,
       'name': name,
-      'phoneNumber': phoneNumber,
+      'email': email,
       'token': token,
     };
   }
@@ -32,14 +32,14 @@ class User {
   User copyWith({
     String? id,
     String? name,
-    String? phoneNumber,
+    String? email,
     String? token,
   }) {
     return User(
       id: id ?? this.id,
       name: name ?? this.name,
-      phoneNumber: phoneNumber ?? this.phoneNumber,
+      email: email ?? this.email,
       token: token ?? this.token,
     );
   }
-} 
+}
