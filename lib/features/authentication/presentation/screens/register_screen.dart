@@ -1,7 +1,12 @@
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:provider/provider.dart';
+import 'package:smart_farm/core/constants/app_fonts.dart';
+import 'package:smart_farm/core/constants/app_size.dart';
+import 'package:smart_farm/core/constants/theme/app_color.dart';
 import 'package:smart_farm/core/routing/app_router.dart';
+import 'package:smart_farm/features/authentication/presentation/widgets/auth_button.dart';
+import 'package:smart_farm/features/authentication/presentation/widgets/textform.dart';
 import '../provider/auth_provider.dart';
 
 class RegisterScreen extends StatefulWidget {
@@ -47,18 +52,29 @@ class _RegisterScreenState extends State<RegisterScreen> {
           password: _passwordController.text,
         );
 
-    if (success && mounted) {
-      // Navigate to home screen
-      context.go(AppRouter.homeRoute);
-    } else if (mounted) {
+    if (!mounted) return;
+
+    if (success) {
+      // Give a moment for state to fully propagate
+      await Future.delayed(const Duration(milliseconds: 500));
+      
+      if (mounted) {
+        // Navigate to home screen
+        context.go(AppRouter.appRoute);
+      }
+    } else {
       // Show error snackbar
       final authProvider = context.read<AuthProvider>();
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(authProvider.error ?? 'Registration failed'),
-          backgroundColor: Colors.red,
-        ),
-      );
+      
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(authProvider.error ?? 'Registration failed'),
+            backgroundColor: Colors.red,
+            duration: const Duration(seconds: 4),
+          ),
+        );
+      }
     }
   }
 
@@ -67,10 +83,6 @@ class _RegisterScreenState extends State<RegisterScreen> {
     return Consumer<AuthProvider>(
       builder: (context, authProvider, child) {
         return Scaffold(
-          appBar: AppBar(
-            title: const Text('Register'),
-            centerTitle: true,
-          ),
           body: SingleChildScrollView(
             padding: const EdgeInsets.all(16.0),
             child: Form(
@@ -78,6 +90,32 @@ class _RegisterScreenState extends State<RegisterScreen> {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
+                
+                  Text(
+                    'Register to get started with FarmAgent where you can monitor and manage your farm easily',
+                    style: AppFonts.text16normal(
+                      context,
+                      color: AppColors.primaryText,
+                      fontWeight: FontWeight.w300,
+                    ),
+                    textAlign: TextAlign.center,
+                  ),
+                  SizedBox(height: AppSizes.spaceXL(context)),
+                  authButton(
+                    icon:
+                        const Icon(Icons.apple, size: 20, color: Colors.black),
+                    text: 'Login with Apple',
+                    color: AppColors.background,
+                    textColor: AppColors.primaryText,
+                  ),
+                  SizedBox(height: AppSizes.spaceS(context)),
+                  authButton(
+                    icon: const Icon(Icons.g_mobiledata, size: 20),
+                    color: AppColors.background,
+                    text: 'Login with Google',
+                    textColor: AppColors.primaryText,
+                  ),
+                  SizedBox(height: AppSizes.spaceXL(context)),
                   if (authProvider.error != null)
                     Padding(
                       padding: const EdgeInsets.only(bottom: 16.0),
@@ -94,13 +132,11 @@ class _RegisterScreenState extends State<RegisterScreen> {
                         ),
                       ),
                     ),
-                  TextFormField(
+                  CustomTextFormField(
+                    hintText: 'Full Name',
+                    prefixIcon: const Icon(Icons.person),
+                    iconColor: AppColors.primaryText,
                     controller: _nameController,
-                    decoration: const InputDecoration(
-                      labelText: 'Full Name',
-                      border: OutlineInputBorder(),
-                      prefixIcon: Icon(Icons.person),
-                    ),
                     validator: (value) {
                       if (value == null || value.trim().isEmpty) {
                         return 'Please enter your name';
@@ -109,13 +145,11 @@ class _RegisterScreenState extends State<RegisterScreen> {
                     },
                   ),
                   const SizedBox(height: 16),
-                  TextFormField(
+                  CustomTextFormField(
+                    hintText: 'Email',
                     controller: _emailController,
-                    decoration: const InputDecoration(
-                      labelText: 'Email',
-                      border: OutlineInputBorder(),
-                      prefixIcon: Icon(Icons.email),
-                    ),
+                    iconColor: AppColors.primaryText,
+                    prefixIcon: const Icon(Icons.email),
                     keyboardType: TextInputType.emailAddress,
                     validator: (value) {
                       if (value == null || value.trim().isEmpty) {
@@ -191,16 +225,11 @@ class _RegisterScreenState extends State<RegisterScreen> {
                       ? const Center(
                           child: CircularProgressIndicator(),
                         )
-                      : ElevatedButton(
-                          onPressed: _handleRegister,
-                          style: ElevatedButton.styleFrom(
-                            padding: const EdgeInsets.symmetric(vertical: 16),
-                          ),
-                          child: const Text(
-                            'Register',
-                            style: TextStyle(fontSize: 16),
-                          ),
-                        ),
+                      : authButton(
+                        text: 'Register',
+                        onPressed: () => _handleRegister(),
+                        color: AppColors.primaryGreen,
+                      ),
                   const SizedBox(height: 16),
                   Center(
                     child: Text(

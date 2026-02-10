@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:go_router/go_router.dart';
 import 'package:intl/intl.dart';
 import 'package:provider/provider.dart';
 import '../../../../core/services/supabase_service.dart';
@@ -70,6 +71,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
           ),
         ],
       ),
+      drawer: _buildDrawer(context),
       body: Consumer<DashboardProvider>(
         builder: (context, provider, child) {
           if (provider.isLoading) {
@@ -334,120 +336,6 @@ class _DashboardScreenState extends State<DashboardScreen> {
     );
   }
 
-  Widget _buildPerformanceMetrics(List<BatchPerformanceMetric> metrics) {
-    return Column(
-      children: metrics.take(5).map((metric) {
-        final symbol = _getCurrencySymbol(metric.currency);
-        return Card(
-          margin: const EdgeInsets.only(bottom: 12),
-          child: Padding(
-            padding: const EdgeInsets.all(16),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                  children: [
-                    Expanded(
-                      child: Text(
-                        metric.batchName,
-                        style: const TextStyle(
-                          fontSize: 16,
-                          fontWeight: FontWeight.bold,
-                        ),
-                      ),
-                    ),
-                    Container(
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 8,
-                        vertical: 4,
-                      ),
-                      decoration: BoxDecoration(
-                        color: Colors.blue.withOpacity(0.1),
-                        borderRadius: BorderRadius.circular(12),
-                      ),
-                      child: Text(
-                        'Day ${metric.currentDay}',
-                        style: const TextStyle(
-                          fontSize: 12,
-                          color: Colors.blue,
-                        ),
-                      ),
-                    ),
-                  ],
-                ),
-                const SizedBox(height: 12),
-                Row(
-                  children: [
-                    Expanded(
-                      child: _buildMetricItem(
-                        'Survival',
-                        '${metric.survivalRate.toStringAsFixed(1)}%',
-                        metric.survivalRate > 90 ? Colors.green : Colors.orange,
-                      ),
-                    ),
-                    Expanded(
-                      child: _buildMetricItem(
-                        'Live Birds',
-                        '${metric.liveBirds}/${metric.initialQuantity}',
-                        Colors.blue,
-                      ),
-                    ),
-                  ],
-                ),
-                if (metric.purchaseCost != null) ...[
-                  const SizedBox(height: 8),
-                  Row(
-                    children: [
-                      Expanded(
-                        child: _buildMetricItem(
-                          'Cost/Bird',
-                          '$symbol${metric.costPerBird.toStringAsFixed(2)}',
-                          Colors.grey,
-                        ),
-                      ),
-                      Expanded(
-                        child: _buildMetricItem(
-                          'Cost/Live',
-                          '$symbol${metric.costPerLiveBird.toStringAsFixed(2)}',
-                          Colors.grey,
-                        ),
-                      ),
-                    ],
-                  ),
-                ],
-              ],
-            ),
-          ),
-        );
-      }).toList(),
-    );
-  }
-
-  Widget _buildMetricItem(String label, String value, Color color) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Text(
-          label,
-          style: const TextStyle(
-            fontSize: 12,
-            color: Colors.grey,
-          ),
-        ),
-        const SizedBox(height: 4),
-        Text(
-          value,
-          style: TextStyle(
-            fontSize: 14,
-            fontWeight: FontWeight.bold,
-            color: color,
-          ),
-        ),
-      ],
-    );
-  }
-
   Widget _buildRecentActivities(List<RecentActivity> activities) {
     return Card(
       child: Column(
@@ -473,6 +361,93 @@ class _DashboardScreenState extends State<DashboardScreen> {
             ),
           );
         }).toList(),
+      ),
+    );
+  }
+
+  Widget _buildDrawer(BuildContext context) {
+    final userId = SupabaseService().currentUserId;
+    
+    return Drawer(
+      child: ListView(
+        padding: EdgeInsets.zero,
+        children: [
+          DrawerHeader(
+            decoration: BoxDecoration(
+              gradient: LinearGradient(
+                colors: [
+                  Theme.of(context).primaryColor,
+                  Theme.of(context).primaryColor.withOpacity(0.7),
+                ],
+                begin: Alignment.topLeft,
+                end: Alignment.bottomRight,
+              ),
+            ),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              mainAxisAlignment: MainAxisAlignment.end,
+              children: [
+                const CircleAvatar(
+                  radius: 30,
+                  backgroundColor: Colors.white,
+                  child: Icon(Icons.person, size: 35, color: Colors.blue),
+                ),
+                const SizedBox(height: 12),
+                const Text(
+                  'Smart Farm',
+                  style: TextStyle(
+                    color: Colors.white,
+                    fontSize: 20,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+                Text(
+                  userId ?? 'Farmer',
+                  style: const TextStyle(
+                    color: Colors.white70,
+                    fontSize: 14,
+                  ),
+                ),
+              ],
+            ),
+          ),
+          ListTile(
+            leading: const Icon(Icons.dashboard),
+            title: const Text('Dashboard'),
+            selected: true,
+            onTap: () {
+              Navigator.pop(context);
+            },
+          ),
+          ListTile(
+            leading: const Icon(Icons.store),
+            title: const Text('Poultry Shop'),
+            onTap: () {
+              Navigator.pop(context);
+              context.push('/shop');
+            },
+          ),
+          const Divider(),
+          ListTile(
+            leading: const Icon(Icons.settings),
+            title: const Text('Settings'),
+            onTap: () {
+              Navigator.pop(context);
+              context.push('/settings');
+            },
+          ),
+          ListTile(
+            leading: const Icon(Icons.logout, color: Colors.red),
+            title: const Text('Logout', style: TextStyle(color: Colors.red)),
+            onTap: () async {
+              Navigator.pop(context);
+              await SupabaseService().signOut();
+              if (context.mounted) {
+                context.go('/login');
+              }
+            },
+          ),
+        ],
       ),
     );
   }

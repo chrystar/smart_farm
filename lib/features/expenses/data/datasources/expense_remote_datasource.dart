@@ -1,4 +1,5 @@
 import 'package:supabase_flutter/supabase_flutter.dart';
+import '../../../../core/services/offline_sync_service.dart';
 import '../models/expense_model.dart';
 
 abstract class ExpenseRemoteDataSource {
@@ -23,8 +24,12 @@ abstract class ExpenseRemoteDataSource {
 
 class ExpenseRemoteDataSourceImpl implements ExpenseRemoteDataSource {
   final SupabaseClient supabaseClient;
+  final OfflineSyncService offlineSyncService;
 
-  ExpenseRemoteDataSourceImpl({required this.supabaseClient});
+  ExpenseRemoteDataSourceImpl({
+    required this.supabaseClient,
+    required this.offlineSyncService,
+  });
 
   @override
   Future<List<ExpenseModel>> getExpenses(String userId) async {
@@ -39,6 +44,11 @@ class ExpenseRemoteDataSourceImpl implements ExpenseRemoteDataSource {
           .map((json) => ExpenseModel.fromJson(json))
           .toList();
     } catch (e) {
+      // Fallback to offline data if not connected
+      if (!offlineSyncService.isOnline) {
+        final offlineData = await offlineSyncService.getAllExpensesOffline();
+        return offlineData.map((json) => ExpenseModel.fromJson(json)).toList();
+      }
       throw Exception('Failed to fetch expenses: $e');
     }
   }
@@ -62,6 +72,17 @@ class ExpenseRemoteDataSourceImpl implements ExpenseRemoteDataSource {
           .map((json) => ExpenseModel.fromJson(json))
           .toList();
     } catch (e) {
+      // Fallback to offline data if not connected
+      if (!offlineSyncService.isOnline) {
+        final offlineData = await offlineSyncService.getAllExpensesOffline();
+        return offlineData
+            .where((expense) {
+              final date = DateTime.parse(expense['date'] as String);
+              return date.isAfter(startDate) && date.isBefore(endDate);
+            })
+            .map((json) => ExpenseModel.fromJson(json))
+            .toList();
+      }
       throw Exception('Failed to fetch expenses by date range: $e');
     }
   }
@@ -104,18 +125,18 @@ class ExpenseRemoteDataSourceImpl implements ExpenseRemoteDataSource {
 
   @override
   Future<ExpenseModel> createExpense(ExpenseModel expense) async {
-    try {
-      final data = {
-        'user_id': expense.userId,
-        'amount': expense.amount,
-        'currency': expense.currency,
-        'category': expense.category.name,
-        'custom_category': expense.customCategory,
-        'description': expense.description,
-        'date': expense.date.toIso8601String(),
-        'batch_id': expense.batchId,
-      };
+    final data = {
+      'user_id': expense.userId,
+      'amount': expense.amount,
+      'currency': expense.currency,
+      'category': expense.category.name,
+      'custom_category': expense.customCategory,
+      'description': expense.description,
+      'date': expense.date.toIso8601String(),
+      'batch_id': expense.batchId,
+    };
 
+    try {
       final response = await supabaseClient
           .from('expenses')
           .insert(data)
@@ -124,33 +145,57 @@ class ExpenseRemoteDataSourceImpl implements ExpenseRemoteDataSource {
 
       return ExpenseModel.fromJson(response);
     } catch (e) {
+      // Save offline if not connected
+      if (!offlineSyncService.isOnline) {
+        final expenseId = expense.id;
+        await offlineSyncService.saveExpenseOffline(expenseId, {
+          'id': expenseId,
+          ...data,
+        });
+        return ExpenseModel.fromJson({
+          'id': expenseId,
+          ...data,
+        });
+      }
       throw Exception('Failed to create expense: $e');
     }
   }
 
   @override
+  @override
   Future<ExpenseModel> updateExpense(ExpenseModel expense) async {
-    try {
-      final data = {
-        'amount': expense.amount,
-        'currency': expense.currency,
-        'category': expense.category.name,
-        'custom_category': expense.customCategory,
-        'description': expense.description,
-        'date': expense.date.toIso8601String(),
-        'batch_id': expense.batchId,
-        'updated_at': DateTime.now().toIso8601String(),
-      };
+    final updateData = {
+      'amount': expense.amount,
+      'currency': expense.currency,
+      'category': expense.category.name,
+      'custom_category': expense.customCategory,
+      'description': expense.description,
+      'date': expense.date.toIso8601String(),
+      'batch_id': expense.batchId,
+      'updated_at': DateTime.now().toIso8601String(),
+    };
 
+    try {
       final response = await supabaseClient
           .from('expenses')
-          .update(data)
+          .update(updateData)
           .eq('id', expense.id)
           .select()
           .single();
 
       return ExpenseModel.fromJson(response);
     } catch (e) {
+      // Save offline if not connected
+      if (!offlineSyncService.isOnline) {
+        await offlineSyncService.saveExpenseOffline(expense.id, {
+          'id': expense.id,
+          ...updateData,
+        });
+        return ExpenseModel.fromJson({
+          'id': expense.id,
+          ...updateData,
+        });
+      }
       throw Exception('Failed to update expense: $e');
     }
   }
@@ -160,6 +205,11 @@ class ExpenseRemoteDataSourceImpl implements ExpenseRemoteDataSource {
     try {
       await supabaseClient.from('expenses').delete().eq('id', expenseId);
     } catch (e) {
+      // Mark as deleted offline if not connected
+      if (!offlineSyncService.isOnline) {
+        // Will be handled by pending sync queue
+        return;
+      }
       throw Exception('Failed to delete expense: $e');
     }
   }

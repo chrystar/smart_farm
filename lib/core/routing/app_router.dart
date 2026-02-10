@@ -16,6 +16,12 @@ import 'package:smart_farm/features/settings/presentation/pages/settings_screen.
 import 'package:smart_farm/features/settings/presentation/pages/profile_screen.dart';
 import 'package:smart_farm/features/settings/presentation/pages/notification_settings_screen.dart';
 import 'package:smart_farm/features/settings/presentation/pages/about_screen.dart';
+import 'package:smart_farm/features/shop/presentation/screens/shop_catalog_screen.dart';
+import 'package:smart_farm/features/shop/presentation/screens/product_detail_screen.dart';
+import 'package:smart_farm/features/shop/presentation/screens/cart_screen.dart';
+import 'package:smart_farm/features/shop/presentation/screens/checkout_screen.dart';
+import 'package:smart_farm/features/shop/presentation/screens/orders_list_screen.dart';
+import 'package:smart_farm/features/shop/presentation/screens/order_detail_screen.dart';
 
 class AppRouter {
   static const String splashRoute = '/';
@@ -109,6 +115,42 @@ class AppRouter {
         path: aboutRoute,
         name: 'about',
         builder: (context, state) => const AboutScreen(),
+      ),
+      GoRoute(
+        path: '/shop',
+        name: 'shop',
+        builder: (context, state) => const ShopCatalogScreen(),
+      ),
+      GoRoute(
+        path: '/shop/product/:id',
+        name: 'productDetail',
+        builder: (context, state) {
+          final id = state.pathParameters['id']!;
+          return ProductDetailScreen(productId: id);
+        },
+      ),
+      GoRoute(
+        path: '/shop/cart',
+        name: 'cart',
+        builder: (context, state) => const CartScreen(),
+      ),
+      GoRoute(
+        path: '/shop/checkout',
+        name: 'checkout',
+        builder: (context, state) => const CheckoutScreen(),
+      ),
+      GoRoute(
+        path: '/shop/orders',
+        name: 'orders',
+        builder: (context, state) => const OrdersListScreen(),
+      ),
+      GoRoute(
+        path: '/shop/orders/:id',
+        name: 'orderDetail',
+        builder: (context, state) {
+          final id = state.pathParameters['id']!;
+          return OrderDetailScreen(orderId: id);
+        },
       ),
     ],
   );

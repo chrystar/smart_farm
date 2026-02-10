@@ -39,21 +39,32 @@ class _LoginScreenState extends State<LoginScreen> {
           password: _passwordController.text,
         );
 
-    if (success && mounted) {
-      // Navigate to home screen
-      context.go(AppRouter.homeRoute);
-    } else if (mounted) {
+    if (!mounted) return;
+
+    if (success) {
+      // Give a moment for state to fully propagate
+      await Future.delayed(const Duration(milliseconds: 500));
+
+      if (mounted) {
+        // Navigate to home screen
+        context.go(AppRouter.appRoute);
+      }
+    } else {
       // Show error snackbar with detailed error
       final authProvider = context.read<AuthProvider>();
       final errorMsg = authProvider.error?.isNotEmpty == true
           ? authProvider.error
           : 'Login failed. Please check your credentials or network.';
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(errorMsg!),
-          backgroundColor: Colors.red,
-        ),
-      );
+
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(errorMsg!),
+            backgroundColor: Colors.red,
+            duration: const Duration(seconds: 4),
+          ),
+        );
+      }
     }
   }
 
@@ -62,14 +73,28 @@ class _LoginScreenState extends State<LoginScreen> {
     return Consumer<AuthProvider>(
       builder: (context, authProvider, child) {
         return Scaffold(
-          backgroundColor: Colors.grey.shade200,
+          backgroundColor: Theme.of(context).scaffoldBackgroundColor,
           body: SingleChildScrollView(
             child: Padding(
               padding: const EdgeInsets.only(left: 20, right: 20, top: 30),
               child: Form(
                 key: _formKey,
                 child: Column(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  crossAxisAlignment: CrossAxisAlignment.center,
+              
                   children: [
+                    
+                    Text(
+                      'login to get started with farmagent where you can monitor and manage your farm easily',
+                      style: AppFonts.text16normal(
+                        context,
+                        color: AppColors.primaryText,
+                        fontWeight: FontWeight.w300,
+                      ),
+                      textAlign: TextAlign.center,
+                    ),
+                    SizedBox(height: AppSizes.spaceXL(context)),
                     authButton(
                       icon: const Icon(Icons.apple,
                           size: 20, color: Colors.black),

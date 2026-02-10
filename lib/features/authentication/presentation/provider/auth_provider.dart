@@ -53,8 +53,8 @@ class AuthProvider extends ChangeNotifier {
     );
 
     bool success = false;
-    result.fold(
-      (failure) {
+    await result.fold(
+      (failure) async {
         _error = failure.message;
         _user = null;
         success = false;
@@ -92,8 +92,9 @@ class AuthProvider extends ChangeNotifier {
     );
 
     bool success = false;
-    result.fold(
-      (failure) {
+    
+    await result.fold(
+      (failure) async {
         _error = failure.message;
         _user = null;
         _token = null;

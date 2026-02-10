@@ -46,7 +46,23 @@ class Batch extends Equatable {
   // Calculate days since start (Day 1 = activation day)
   int? getDaysSinceStart() {
     if (startDate == null) return null;
-    return DateTime.now().difference(startDate!).inDays + 1;
+
+    // Normalize to local calendar days (inclusive counting)
+    final start = DateTime(
+      startDate!.year,
+      startDate!.month,
+      startDate!.day,
+    );
+
+    final anchorRaw = endDate ?? DateTime.now();
+    final anchor = DateTime(
+      anchorRaw.year,
+      anchorRaw.month,
+      anchorRaw.day,
+    );
+
+    if (anchor.isBefore(start)) return 0;
+    return anchor.difference(start).inDays + 1;
   }
 
   Batch copyWith({

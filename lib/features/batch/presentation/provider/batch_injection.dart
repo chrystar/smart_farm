@@ -1,6 +1,7 @@
 import 'package:provider/provider.dart';
 import 'package:provider/single_child_widget.dart';
 import '../../../../core/services/supabase_service.dart';
+import '../../../../core/services/offline_sync_service.dart';
 import '../../data/datasource/batch_remote_datasource.dart';
 import '../../data/repository/batch_repository_impl.dart';
 import '../../domain/usecases/create_batch_usecase.dart';
@@ -17,8 +18,10 @@ class BatchInjection {
     ChangeNotifierProvider(
       create: (_) {
         final supabaseService = SupabaseService();
+        final offlineSyncService = OfflineSyncService();
         final dataSource = BatchRemoteDataSourceImpl(
           supabaseService: supabaseService,
+          offlineSyncService: offlineSyncService,
         );
         final repository = BatchRepositoryImpl(
           remoteDataSource: dataSource,

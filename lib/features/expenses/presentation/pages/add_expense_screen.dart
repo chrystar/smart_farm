@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
+import 'package:smart_farm/core/constants/theme/app_color.dart';
 import '../../../settings/presentation/provider/settings_provider.dart';
 import 'package:uuid/uuid.dart';
 import '../../../../core/services/supabase_service.dart';
@@ -123,20 +124,30 @@ class _AddExpenseScreenState extends State<AddExpenseScreen> {
         backgroundColor: Theme.of(context).scaffoldBackgroundColor,
       ),
       body: SingleChildScrollView(
-        padding: const EdgeInsets.all(16),
+        padding: const EdgeInsets.only(left: 16, right: 16, top: 20,),
         child: Form(
           key: _formKey,
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
+              Text('Keep a close track of your expenses to manage your farm effectively.',
+                  style: TextStyle(fontSize: 14, color: Colors.grey[700]),
+                  ),
+              const SizedBox(height: 40),
               // Amount Field
               TextFormField(
                 controller: _amountController,
                 decoration: const InputDecoration(
                   labelText: 'Amount',
                   prefixIcon: Icon(Icons.attach_money),
-                  border: OutlineInputBorder(),
+                  border: OutlineInputBorder(
+                    borderRadius: BorderRadius.all(Radius.circular(16))
+                  ),
                   hintText: '0.00',
+                   focusedBorder: OutlineInputBorder(
+                    borderRadius: BorderRadius.all(Radius.circular(16)),
+                    borderSide: BorderSide(color: AppColors.primaryGreen)
+                  ),
                 ),
                 keyboardType: const TextInputType.numberWithOptions(decimal: true),
                 inputFormatters: [
@@ -155,28 +166,35 @@ class _AddExpenseScreenState extends State<AddExpenseScreen> {
                   return null;
                 },
               ),
-
+          
               const SizedBox(height: 16),
-
+          
               // What was bought (Description)
               TextFormField(
                 controller: _descriptionController,
                 decoration: const InputDecoration(
                   labelText: 'What was bought (optional)',
                   prefixIcon: Icon(Icons.shopping_bag_outlined),
-                  border: OutlineInputBorder(),
+                  border: OutlineInputBorder(
+                    borderRadius: BorderRadius.all(Radius.circular(16))
+                  ),
                   hintText: 'e.g., 3 bags of feed',
+                  focusedBorder: OutlineInputBorder(
+                    borderRadius: BorderRadius.all(Radius.circular(16)),
+                    borderSide: BorderSide(color: AppColors.primaryGreen)
+                  ),
                 ),
+                
                 maxLength: 120,
               ),
-
+          
               // Currency Dropdown
               DropdownButtonFormField<String>(
                 value: _selectedCurrency,
                 decoration: const InputDecoration(
                   labelText: 'Currency',
                   prefixIcon: Icon(Icons.currency_exchange),
-                  border: OutlineInputBorder(),
+                  border: OutlineInputBorder(borderRadius: BorderRadius.all(Radius.circular(16))),
                 ),
                 items: ['USD', 'NGN', 'GHS', 'KES', 'ZAR', 'EUR', 'GBP']
                     .map((currency) => DropdownMenuItem(
@@ -192,16 +210,18 @@ class _AddExpenseScreenState extends State<AddExpenseScreen> {
                   }
                 },
               ),
-
+          
               const SizedBox(height: 16),
-
+          
               // Category Dropdown
               DropdownButtonFormField<ExpenseCategory>(
                 value: _selectedCategory,
                 decoration: const InputDecoration(
                   labelText: 'Category',
                   prefixIcon: Icon(Icons.category),
-                  border: OutlineInputBorder(),
+                  border: OutlineInputBorder(
+                    borderRadius: BorderRadius.all(Radius.circular(16))
+                  ),
                 ),
                 items: ExpenseCategory.values
                     .map((category) => DropdownMenuItem(
@@ -223,9 +243,9 @@ class _AddExpenseScreenState extends State<AddExpenseScreen> {
                   }
                 },
               ),
-
+          
               const SizedBox(height: 16),
-
+          
               // Date Picker
               InkWell(
                 onTap: _selectDate,
@@ -233,16 +253,18 @@ class _AddExpenseScreenState extends State<AddExpenseScreen> {
                   decoration: const InputDecoration(
                     labelText: 'Date',
                     prefixIcon: Icon(Icons.calendar_today),
-                    border: OutlineInputBorder(),
+                    border: OutlineInputBorder(
+                      borderRadius: BorderRadius.all(Radius.circular(16))
+                    ),
                   ),
                   child: Text(
                     '${_selectedDate.day}/${_selectedDate.month}/${_selectedDate.year}',
                   ),
                 ),
               ),
-
+          
               const SizedBox(height: 32),
-
+          
               // Save Button
               SizedBox(
                 height: 50,
@@ -260,8 +282,11 @@ class _AddExpenseScreenState extends State<AddExpenseScreen> {
                       : const Icon(Icons.save),
                   label: Text(_isSaving ? 'Saving...' : 'Save Expense'),
                   style: ElevatedButton.styleFrom(
-                    backgroundColor: Theme.of(context).primaryColor,
-                    foregroundColor: Colors.white,
+                    backgroundColor: AppColors.primaryGreen,
+                    foregroundColor: AppColors.primaryText,
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(16),
+                    ),
                   ),
                 ),
               ),

@@ -29,6 +29,10 @@ dependencies:
   url_launcher: ^6.2.0
   pdf: ^3.11.3
   flutter_timezone: ^5.0.1
+  # PWA & Offline support
+  connectivity_plus: ^5.0.0
+  hive: ^2.2.3
+  hive_flutter: ^1.1.0
 
 dev_dependencies:
   flutter_test:

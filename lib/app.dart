@@ -23,8 +23,44 @@ class _AppState extends State<App> {
     SettingsScreen(),
   ];
 
+  final _navItems = const [
+    (icon: Icons.dashboard, label: 'Dashboard'),
+    (icon: Icons.agriculture, label: 'Batches'),
+    (icon: Icons.receipt_long, label: 'Expenses'),
+    (icon: Icons.store, label: 'Sales'),
+    (icon: Icons.settings, label: 'Settings'),
+  ];
+
   @override
   Widget build(BuildContext context) {
+    final isWeb = MediaQuery.of(context).size.width > 800;
+
+    if (isWeb) {
+      // Desktop: Sidebar navigation
+      return Scaffold(
+        body: Row(
+          children: [
+            NavigationRail(
+              selectedIndex: _currentIndex,
+              onDestinationSelected: (index) => setState(() => _currentIndex = index),
+              labelType: NavigationRailLabelType.all,
+              backgroundColor: Theme.of(context).primaryColor.withOpacity(0.1),
+              destinations: _navItems
+                  .map((item) => NavigationRailDestination(
+                        icon: Icon(item.icon),
+                        label: Text(item.label),
+                      ))
+                  .toList(),
+            ),
+            Expanded(
+              child: _screens[_currentIndex],
+            ),
+          ],
+        ),
+      );
+    }
+
+    // Mobile: Bottom navigation
     return Scaffold(
       body: _screens[_currentIndex],
       bottomNavigationBar: BottomNavigationBar(
@@ -33,13 +69,12 @@ class _AppState extends State<App> {
         unselectedItemColor: Colors.grey,
         type: BottomNavigationBarType.fixed,
         onTap: (i) => setState(() => _currentIndex = i),
-        items: const [
-          BottomNavigationBarItem(icon: Icon(Icons.dashboard), label: 'Dashboard'),
-          BottomNavigationBarItem(icon: Icon(Icons.agriculture), label: 'Batches'),
-          BottomNavigationBarItem(icon: Icon(Icons.receipt_long), label: 'Expenses'),
-          BottomNavigationBarItem(icon: Icon(Icons.store), label: 'Sales'),
-          BottomNavigationBarItem(icon: Icon(Icons.settings), label: 'Settings'),
-        ],
+        items: _navItems
+            .map((item) => BottomNavigationBarItem(
+                  icon: Icon(item.icon),
+                  label: item.label,
+                ))
+            .toList(),
       ),
     );
   }

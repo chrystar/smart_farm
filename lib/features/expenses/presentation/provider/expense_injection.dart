@@ -1,6 +1,7 @@
 import 'package:provider/provider.dart';
 import 'package:provider/single_child_widget.dart';
 import '../../../../core/services/supabase_service.dart';
+import '../../../../core/services/offline_sync_service.dart';
 import '../../data/datasources/expense_remote_datasource.dart';
 import '../../data/repository/expense_repository_impl.dart';
 import '../../domain/usecases/get_expenses_usecase.dart';
@@ -11,9 +12,11 @@ import '../provider/expense_provider.dart';
 
 class ExpenseInjection {
   static final _supabaseClient = SupabaseService().client;
+  static final _offlineSyncService = OfflineSyncService();
 
   static final _remoteDataSource = ExpenseRemoteDataSourceImpl(
     supabaseClient: _supabaseClient,
+    offlineSyncService: _offlineSyncService,
   );
 
   static final _repository = ExpenseRepositoryImpl(

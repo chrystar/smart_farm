@@ -1,11 +1,13 @@
 import 'package:flutter/foundation.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
+import '../../../../core/services/offline_sync_service.dart';
 import '../models/sale_model.dart';
 
 class SalesRemoteDataSource {
   final SupabaseClient supabaseClient;
+  final OfflineSyncService offlineSyncService;
 
-  SalesRemoteDataSource(this.supabaseClient);
+  SalesRemoteDataSource(this.supabaseClient, this.offlineSyncService);
 
   Future<SaleModel> recordSale(Map<String, dynamic> saleData) async {
     try {
@@ -18,6 +20,12 @@ class SalesRemoteDataSource {
       debugPrint('Sale inserted successfully: $response');
       return SaleModel.fromJson(response);
     } catch (e) {
+      // Save offline if not connected
+      if (!offlineSyncService.isOnline) {
+        final saleId = saleData['id'] ?? DateTime.now().millisecondsSinceEpoch.toString();
+        await offlineSyncService.saveSalesOffline(saleId, {...saleData, 'id': saleId});
+        return SaleModel.fromJson({...saleData, 'id': saleId});
+      }
       debugPrint('Error recording sale: $e');
       throw Exception('Failed to record sale: $e');
     }
@@ -35,6 +43,11 @@ class SalesRemoteDataSource {
           .map((e) => SaleModel.fromJson(e as Map<String, dynamic>))
           .toList();
     } catch (e) {
+      // Fallback to offline data if not connected
+      if (!offlineSyncService.isOnline) {
+        final offlineData = await offlineSyncService.getAllSalesOffline();
+        return offlineData.map((data) => SaleModel.fromJson(data)).toList();
+      }
       throw Exception('Failed to fetch sales: $e');
     }
   }
@@ -62,6 +75,10 @@ class SalesRemoteDataSource {
           .update({'payment_status': status})
           .eq('id', saleId);
     } catch (e) {
+      // Offline update will be handled by pending sync queue
+      if (!offlineSyncService.isOnline) {
+        return;
+      }
       throw Exception('Failed to update payment status: $e');
     }
   }
@@ -70,6 +87,9 @@ class SalesRemoteDataSource {
     try {
       await supabaseClient.from('sales').delete().eq('id', saleId);
     } catch (e) {
+      if (!offlineSyncService.isOnline) {
+        return;
+      }
       throw Exception('Failed to delete sale: $e');
     }
   }

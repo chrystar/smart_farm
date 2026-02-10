@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:intl/intl.dart';
+import 'package:smart_farm/core/constants/theme/app_color.dart';
 import '../../../../core/services/supabase_service.dart';
 import '../../domain/entities/expense.dart';
 import '../provider/expense_provider.dart';
@@ -44,14 +45,14 @@ class _ExpensesScreenState extends State<ExpensesScreen> {
         padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
         decoration: BoxDecoration(
           color: isSelected
-              ? Theme.of(context).primaryColor
-              : Colors.grey[200],
+              ? AppColors.primaryGreen
+              : Colors.grey[100],
           borderRadius: BorderRadius.circular(8),
         ),
         child: Text(
           label,
           style: TextStyle(
-            color: isSelected ? Colors.white : Colors.black,
+            color: isSelected ? Colors.black : Colors.black,
             fontWeight: isSelected ? FontWeight.w600 : FontWeight.normal,
           ),
         ),
@@ -531,6 +532,7 @@ class _ExpensesScreenState extends State<ExpensesScreen> {
         },
       ),
       floatingActionButton: FloatingActionButton(
+        backgroundColor: AppColors.primaryGreen,
         onPressed: () async {
           await Navigator.push(
             context,

@@ -5,6 +5,7 @@ import 'package:intl/intl.dart';
 import '../provider/expense_provider.dart';
 import '../../domain/entities/expense.dart';
 import 'add_expense_screen.dart';
+import '../../../settings/presentation/provider/settings_provider.dart';
 
 class ExpenseDashboardScreen extends StatefulWidget {
   const ExpenseDashboardScreen({super.key});
@@ -15,7 +16,23 @@ class ExpenseDashboardScreen extends StatefulWidget {
 
 class _ExpenseDashboardScreenState extends State<ExpenseDashboardScreen> {
   DateTimeRange? _selectedDateRange;
-  final _currencyFormat = NumberFormat.currency(symbol: '\$');
+
+  String _getCurrencySymbol(String currencyCode) {
+    const Map<String, String> currencySymbols = {
+      'USD': '\$',
+      'NGN': '₦',
+      'GHS': '₵',
+      'KES': 'KSh',
+      'ZAR': 'R',
+      'EUR': '€',
+      'GBP': '£',
+    };
+    return currencySymbols[currencyCode] ?? currencyCode;
+  }
+
+  NumberFormat _getCurrencyFormat(String currencyCode) {
+    return NumberFormat.currency(symbol: _getCurrencySymbol(currencyCode));
+  }
 
   @override
   void initState() {
@@ -92,6 +109,8 @@ class _ExpenseDashboardScreenState extends State<ExpenseDashboardScreen> {
       ),
       body: Consumer<ExpenseProvider>(
         builder: (context, provider, child) {
+          final currencyCode = context.read<SettingsProvider>().preferences?.defaultCurrency ?? 'USD';
+          
           if (provider.isLoading) {
             return const Center(child: CircularProgressIndicator());
           }
@@ -156,12 +175,12 @@ class _ExpenseDashboardScreenState extends State<ExpenseDashboardScreen> {
                   const SizedBox(height: 16),
 
                   // Summary Cards
-                  _buildSummaryCards(totalExpenses, provider.expenses.length),
+                  _buildSummaryCards(totalExpenses, provider.expenses.length, currencyCode),
                
                   const SizedBox(height: 24),
 
                   // Category Breakdown List
-                  _buildCategoryBreakdownList(categoryBreakdown, totalExpenses),
+                  _buildCategoryBreakdownList(categoryBreakdown, totalExpenses, currencyCode),
                   const SizedBox(height: 24),
 
                   // Trend Chart
@@ -170,7 +189,7 @@ class _ExpenseDashboardScreenState extends State<ExpenseDashboardScreen> {
                     style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
                   ),
                   const SizedBox(height: 16),
-                  _buildTrendChart(provider.expenses),
+                  _buildTrendChart(provider.expenses, currencyCode),
                 ],
               ),
             ),
@@ -232,7 +251,8 @@ class _ExpenseDashboardScreenState extends State<ExpenseDashboardScreen> {
     );
   }
 
-  Widget _buildSummaryCards(double total, int count) {
+  Widget _buildSummaryCards(double total, int count, String currencyCode) {
+    final format = _getCurrencyFormat(currencyCode);
     return Row(
       children: [
         Expanded(
@@ -250,7 +270,7 @@ class _ExpenseDashboardScreenState extends State<ExpenseDashboardScreen> {
                   ),
                   const SizedBox(height: 8),
                   Text(
-                    _currencyFormat.format(total),
+                    format.format(total),
                     style: const TextStyle(
                       fontSize: 20,
                       fontWeight: FontWeight.bold,
@@ -298,7 +318,9 @@ class _ExpenseDashboardScreenState extends State<ExpenseDashboardScreen> {
   Widget _buildCategoryBreakdownList(
     Map<ExpenseCategory, double> categoryData,
     double total,
+    String currencyCode,
   ) {
+    final format = _getCurrencyFormat(currencyCode);
     final sortedEntries = categoryData.entries.toList()
       ..sort((a, b) => b.value.compareTo(a.value));
 
@@ -324,7 +346,7 @@ class _ExpenseDashboardScreenState extends State<ExpenseDashboardScreen> {
               title: Text(entry.key.displayName),
               subtitle: Text('$percentage% of total'),
               trailing: Text(
-                _currencyFormat.format(entry.value),
+                format.format(entry.value),
                 style: const TextStyle(
                   fontSize: 16,
                   fontWeight: FontWeight.bold,
@@ -337,7 +359,9 @@ class _ExpenseDashboardScreenState extends State<ExpenseDashboardScreen> {
     );
   }
 
-  Widget _buildTrendChart(List<Expense> expenses) {
+  Widget _buildTrendChart(List<Expense> expenses, String currencyCode) {
+    final symbol = _getCurrencySymbol(currencyCode);
+    
     if (expenses.isEmpty) {
       return const SizedBox(
         height: 200,
@@ -383,7 +407,7 @@ class _ExpenseDashboardScreenState extends State<ExpenseDashboardScreen> {
                 reservedSize: 50,
                 getTitlesWidget: (value, meta) {
                   return Text(
-                    '\$${value.toInt()}',
+                    '$symbol${value.toInt()}',
                     style: const TextStyle(fontSize: 10),
                   );
                 },

@@ -2,7 +2,6 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:smart_farm/core/services/supabase_service.dart';
 import 'package:smart_farm/core/routing/app_router.dart';
-import 'package:google_fonts/google_fonts.dart';
 import 'features/authentication/di/auth_injection.dart';
 import 'features/onboarding/presentation/provider/onboarding_provider.dart';
 import 'features/batch/presentation/provider/batch_injection.dart';
@@ -10,12 +9,10 @@ import 'features/dashboard/presentation/provider/dashboard_injection.dart';
 import 'features/settings/presentation/provider/settings_injection.dart';
 import 'features/expenses/presentation/provider/expense_injection.dart';
 import 'features/sales/presentation/provider/sales_injection.dart';
+import 'features/shop/presentation/provider/shop_injection.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
-
-  // Enable Google Fonts runtime fetching
-  GoogleFonts.config.allowRuntimeFetching = true;
 
   // Initialize Supabase
   try {
@@ -43,6 +40,7 @@ class MyApp extends StatelessWidget {
         ...SettingsInjection.providers,
         ...ExpenseInjection.providers,
         ...SalesInjection.providers,
+        ...ShopInjection.providers,
         ChangeNotifierProvider(create: (_) => OnboardingProvider()),
       ],
       child: MaterialApp.router(
