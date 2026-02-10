@@ -5,10 +5,10 @@
   "env": {
     "FLUTTER_WEB_PLATFORM": "web"
   },
-  "routes": [
+  "rewrites": [
     {
-      "src": "/(.*)",
-      "dest": "/index.html"
+      "source": "/(.*)",
+      "destination": "/index.html"
     }
   ],
   "headers": [
