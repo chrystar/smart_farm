@@ -1,7 +1,7 @@
 {
   "buildCommand": "flutter build web --release",
   "outputDirectory": "build/web",
-  "installCommand": "flutter pub get",
+  "installCommand": "git clone https://github.com/flutter/flutter.git /tmp/flutter && export PATH=/tmp/flutter/bin:$PATH && flutter config --enable-web && flutter pub get",
   "env": {
     "FLUTTER_WEB_PLATFORM": "web"
   },
