@@ -13,6 +13,12 @@ class SupabaseService {
   late SupabaseClient _client;
 
   Future<void> initialize() async {
+    if (SupabaseConfig.supabaseUrl.isEmpty ||
+        SupabaseConfig.supabaseAnonKey.isEmpty) {
+      throw Exception(
+        'Supabase configuration missing. Provide SUPABASE_URL and SUPABASE_ANON_KEY via --dart-define.',
+      );
+    }
     await Supabase.initialize(
       url: SupabaseConfig.supabaseUrl,
       anonKey: SupabaseConfig.supabaseAnonKey,

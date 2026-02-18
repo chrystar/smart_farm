@@ -33,6 +33,18 @@ class VaccinationAlarmService {
     );
     
     await _notificationsPlugin!.initialize(initSettings);
+
+    final androidPlugin = _notificationsPlugin!
+      .resolvePlatformSpecificImplementation<AndroidFlutterLocalNotificationsPlugin>();
+    await androidPlugin?.requestNotificationsPermission();
+
+    final iosPlugin = _notificationsPlugin!
+        .resolvePlatformSpecificImplementation<IOSFlutterLocalNotificationsPlugin>();
+    await iosPlugin?.requestPermissions(
+      alert: true,
+      badge: true,
+      sound: true,
+    );
   }
 
   /// Schedule daily alarm at 6 AM

@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:sentry_flutter/sentry_flutter.dart';
 import 'package:provider/provider.dart';
 import 'package:smart_farm/core/services/supabase_service.dart';
 import 'package:smart_farm/core/routing/app_router.dart';
@@ -14,6 +15,8 @@ import 'features/vaccination/presentation/providers/vaccination_injection.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
+
+  const sentryDsn = String.fromEnvironment('SENTRY_DSN');
 
   // Initialize Supabase
   try {
@@ -34,7 +37,17 @@ void main() async {
     debugPrint('Failed to initialize vaccination alarm: $e');
   }
 
-  runApp(const MyApp());
+  if (sentryDsn.isNotEmpty) {
+    await SentryFlutter.init(
+      (options) {
+        options.dsn = sentryDsn;
+        options.tracesSampleRate = 0.2;
+      },
+      appRunner: () => runApp(const MyApp()),
+    );
+  } else {
+    runApp(const MyApp());
+  }
 }
 
 class MyApp extends StatelessWidget {
