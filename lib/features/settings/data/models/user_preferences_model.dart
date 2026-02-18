@@ -15,6 +15,7 @@ class UserPreferencesModel extends UserPreferences {
     super.missingRecordAlerts,
     super.mortalityThreshold,
     super.dailyReportReminderTime,
+    super.vaccinationAlarmTime,
     super.feedingSchedules,
     super.defaultBirdType,
     super.profileImageUrl,
@@ -36,6 +37,9 @@ class UserPreferencesModel extends UserPreferences {
       mortalityThreshold: json['mortalityThreshold'] as int? ?? 5,
       dailyReportReminderTime: json['dailyReportReminderTime'] != null
           ? _timeFromJson(json['dailyReportReminderTime'] as String)
+          : null,
+      vaccinationAlarmTime: json['vaccinationAlarmTime'] != null
+          ? _timeFromJson(json['vaccinationAlarmTime'] as String)
           : null,
       feedingSchedules: json['feedingSchedules'] != null
           ? (jsonDecode(json['feedingSchedules']) as List)
@@ -63,6 +67,9 @@ class UserPreferencesModel extends UserPreferences {
       'mortalityThreshold': mortalityThreshold,
       'dailyReportReminderTime': dailyReportReminderTime != null
           ? _timeToJson(dailyReportReminderTime!)
+          : null,
+      'vaccinationAlarmTime': vaccinationAlarmTime != null
+          ? _timeToJson(vaccinationAlarmTime!)
           : null,
       'feedingSchedules': jsonEncode(
         feedingSchedules

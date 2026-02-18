@@ -19,22 +19,28 @@ class ExpenseModel extends Expense {
 
   factory ExpenseModel.fromJson(Map<String, dynamic> json) {
     return ExpenseModel(
-      id: json['id'] as String,
-      userId: json['user_id'] as String,
-      amount: (json['amount'] as num).toDouble(),
-      currency: json['currency'] as String,
+      id: json['id']?.toString() ?? '',
+      userId: json['user_id']?.toString() ?? '',
+      amount: (json['amount'] as num?)?.toDouble() ?? 0.0,
+      currency: json['currency']?.toString() ?? 'NGN',
       category: ExpenseCategory.values.firstWhere(
         (e) => e.name == json['category'],
         orElse: () => ExpenseCategory.other,
       ),
-      customCategory: json['custom_category'] as String?,
-      description: json['description'] as String?,
-      date: DateTime.parse(json['date'] as String),
-      batchId: json['batch_id'] as String?,
-      groupId: json['group_id'] as String?,
-      groupTitle: json['group_title'] as String?,
-      createdAt: DateTime.parse(json['created_at'] as String),
-      updatedAt: DateTime.parse(json['updated_at'] as String),
+      customCategory: json['custom_category']?.toString(),
+      description: json['description']?.toString(),
+      date: json['date'] != null 
+          ? DateTime.parse(json['date'] as String)
+          : DateTime.now(),
+      batchId: json['batch_id']?.toString(),
+      groupId: json['group_id']?.toString(),
+      groupTitle: json['group_title']?.toString(),
+      createdAt: json['created_at'] != null
+          ? DateTime.parse(json['created_at'] as String)
+          : DateTime.now(),
+      updatedAt: json['updated_at'] != null
+          ? DateTime.parse(json['updated_at'] as String)
+          : DateTime.now(),
     );
   }
 

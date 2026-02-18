@@ -1,10 +1,15 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
-import '../../domain/entities/batch.dart';
-import '../provider/batch_provider.dart';
+import 'package:smart_farm/features/batch/domain/entities/batch.dart';
+import 'package:smart_farm/features/batch/presentation/provider/batch_provider.dart';
+import 'package:smart_farm/features/sales/presentation/pages/record_sale_screen.dart';
+
+import 'package:supabase_flutter/supabase_flutter.dart';
+
 import 'package:intl/intl.dart';
-import '../../../sales/presentation/pages/record_sale_screen.dart';
+import '../../../vaccination/presentation/widgets/vaccination_tab_widget.dart';
+import '../../../vaccination/data/datasources/vaccination_remote_datasource.dart';
 
 class BatchDetailScreen extends StatefulWidget {
   final String batchId;
@@ -15,7 +20,9 @@ class BatchDetailScreen extends StatefulWidget {
   State<BatchDetailScreen> createState() => _BatchDetailScreenState();
 }
 
-class _BatchDetailScreenState extends State<BatchDetailScreen> {
+class _BatchDetailScreenState extends State<BatchDetailScreen>
+    with SingleTickerProviderStateMixin {
+  late TabController _tabController;
   
   String _getCurrencySymbol(String? currency) {
     if (currency == null) return '\$';
@@ -48,9 +55,16 @@ class _BatchDetailScreenState extends State<BatchDetailScreen> {
   @override
   void initState() {
     super.initState();
+    _tabController = TabController(length: 2, vsync: this);
     WidgetsBinding.instance.addPostFrameCallback((_) {
       _loadBatchData();
     });
+  }
+
+  @override
+  void dispose() {
+    _tabController.dispose();
+    super.dispose();
   }
 
   void _loadBatchData() {
@@ -61,7 +75,7 @@ class _BatchDetailScreenState extends State<BatchDetailScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: Theme.of( context).scaffoldBackgroundColor,
+      backgroundColor: Theme.of(context).scaffoldBackgroundColor,
       appBar: AppBar(
         title: const Text(
           'Batch Details',
@@ -69,8 +83,14 @@ class _BatchDetailScreenState extends State<BatchDetailScreen> {
         ),
         centerTitle: true,
         elevation: 0,
-        backgroundColor: Theme.of(  context).scaffoldBackgroundColor,
-        actions: const [],
+        backgroundColor: Theme.of(context).scaffoldBackgroundColor,
+        bottom: TabBar(
+          controller: _tabController,
+          tabs: const [
+            Tab(text: 'Overview'),
+            Tab(text: 'Vaccinations'),
+          ],
+        ),
       ),
       body: Consumer<BatchProvider>(
         builder: (context, batchProvider, _) {
@@ -80,26 +100,40 @@ class _BatchDetailScreenState extends State<BatchDetailScreen> {
             return const Center(child: Text('Batch not found'));
           }
 
-          return RefreshIndicator(
-            onRefresh: () async => _loadBatchData(),
-            child: ListView(
-              padding: const EdgeInsets.all(16),
-              children: [
-                _buildOverviewCard(batch, batchProvider),
-                const SizedBox(height: 16),
-                if (batch.status == BatchStatus.planned)
-                  _buildStartBatchCard(batch),
-                if (batch.status == BatchStatus.active) ...[
-                  _buildAddRecordCard(),
-                  const SizedBox(height: 16),
-                  _buildActivateSalesEntryCard(batch),
-                  const SizedBox(height: 16),
-                  _buildDailyRecordsSection(batchProvider),
-                ],
-              ],
-            ),
+          return TabBarView(
+            controller: _tabController,
+            children: [
+              _buildOverviewTab(batch, batchProvider),
+              VaccinationTabWidget(
+                batchId: batch.id,
+                batchName: batch.name,
+                batchStartDate: batch.startDate,
+              ),
+            ],
           );
         },
+      ),
+    );
+  }
+
+  Widget _buildOverviewTab(Batch batch, BatchProvider batchProvider) {
+    return RefreshIndicator(
+      onRefresh: () async => _loadBatchData(),
+      child: ListView(
+        padding: const EdgeInsets.all(16),
+        children: [
+          _buildOverviewCard(batch, batchProvider),
+          const SizedBox(height: 16),
+          if (batch.status == BatchStatus.planned)
+            _buildStartBatchCard(batch),
+          if (batch.status == BatchStatus.active) ...[
+            _buildAddRecordCard(),
+            const SizedBox(height: 16),
+            _buildActivateSalesEntryCard(batch),
+            const SizedBox(height: 16),
+            _buildDailyRecordsSection(batchProvider),
+          ],
+        ],
       ),
     );
   }
@@ -774,10 +808,22 @@ class _BatchDetailScreenState extends State<BatchDetailScreen> {
                         );
 
                 if (success && mounted) {
+                  // Create vaccination schedules for the batch
+                  final userId = Supabase.instance.client.auth.currentUser?.id ?? '';
+                  final vaccinationDataSource = VaccinationRemoteDataSourceImpl(
+                    supabaseClient: Supabase.instance.client,
+                  );
+                  
+                  try {
+                    await vaccinationDataSource.createSchedulesForBatch(batch.id, userId);
+                  } catch (e) {
+                    debugPrint('Failed to create vaccination schedules: $e');
+                  }
+                  
                   _loadBatchData();
                   ScaffoldMessenger.of(context).showSnackBar(
                     const SnackBar(
-                      content: Text('Batch started successfully'),
+                      content: Text('Batch started successfully with vaccination schedule'),
                       backgroundColor: Colors.green,
                     ),
                   );

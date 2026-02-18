@@ -1,11 +1,11 @@
 import 'package:flutter/material.dart';
-import 'package:go_router/go_router.dart';
 import 'package:intl/intl.dart';
 import 'package:provider/provider.dart';
 import '../../../../core/services/supabase_service.dart';
 import '../../domain/entities/dashboard_stats.dart';
 import '../provider/dashboard_provider.dart';
 import '../widgets/dashboard_charts.dart';
+import '../../../../../features/batch/presentation/provider/batch_provider.dart';
 
 class DashboardScreen extends StatefulWidget {
   const DashboardScreen({Key? key}) : super(key: key);
@@ -62,16 +62,18 @@ class _DashboardScreenState extends State<DashboardScreen> {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Dashboard', style: TextStyle(fontWeight: FontWeight.bold),),
-        centerTitle: false,
+        title: const Text(
+          'Poultriz',
+          style: TextStyle(fontWeight: FontWeight.bold),
+        ),
+        centerTitle: true,
         actions: [
           IconButton(
             icon: const Icon(Icons.notifications_none),
-            onPressed: (){},
+            onPressed: () {},
           ),
         ],
       ),
-      drawer: _buildDrawer(context),
       body: Consumer<DashboardProvider>(
         builder: (context, provider, child) {
           if (provider.isLoading) {
@@ -106,15 +108,18 @@ class _DashboardScreenState extends State<DashboardScreen> {
             onRefresh: _loadDashboard,
             child: SingleChildScrollView(
               physics: const AlwaysScrollableScrollPhysics(),
-              padding: const EdgeInsets.all(16),
+              padding: const EdgeInsets.only(left: 16, right: 16, bottom: 16),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
+                  _buildVaccineBatche(),
+                  const SizedBox(height: 24),
+
                   // Overview Cards
                   _buildOverviewCards(stats),
                   const SizedBox(height: 24),
 
-                    // Alerts
+                  // Alerts
                   if (stats.alerts.isNotEmpty) ...[
                     _buildSectionTitle('Alerts'),
                     const SizedBox(height: 12),
@@ -139,7 +144,6 @@ class _DashboardScreenState extends State<DashboardScreen> {
                   ),
                   const SizedBox(height: 24),
 
-                  
                   // Investment Breakdown
                   if (stats.investmentByCurrency.isNotEmpty) ...[
                     _buildSectionTitle('Investment by Currency'),
@@ -147,7 +151,6 @@ class _DashboardScreenState extends State<DashboardScreen> {
                     _buildInvestmentBreakdown(stats.investmentByCurrency),
                     const SizedBox(height: 24),
                   ],
-
 
                   // Recent Activity
                   if (stats.recentActivities.isNotEmpty) ...[
@@ -211,7 +214,8 @@ class _DashboardScreenState extends State<DashboardScreen> {
     );
   }
 
-  Widget _buildStatCard(String label, String value, IconData icon, Color color) {
+  Widget _buildStatCard(
+      String label, String value, IconData icon, Color color) {
     return Card(
       elevation: 0,
       child: Padding(
@@ -298,6 +302,138 @@ class _DashboardScreenState extends State<DashboardScreen> {
     );
   }
 
+  Widget _buildVaccineBatche() {
+    return Consumer<BatchProvider>(
+      builder: (context, batchProvider, _) {
+        final activeBatches = batchProvider.batches
+            .where((b) => b.status.name == 'active')
+            .toList();
+        if (activeBatches.isEmpty) return const SizedBox.shrink();
+        final activeBatch = activeBatches.first;
+        final startDate = activeBatch.startDate;
+        if (startDate == null) return const SizedBox.shrink();
+        final currentDay = DateTime.now().difference(startDate).inDays + 1;
+
+        return FutureBuilder<List<Map<String, dynamic>>>(
+          future: _getDefaultVaccinationSchedules(),
+          builder: (context, snapshot) {
+            if (!snapshot.hasData) return const SizedBox.shrink();
+            final schedules = snapshot.data!;
+            final dueVaccines = <Map<String, dynamic>>[];
+            
+            for (final schedule in schedules) {
+              final vaccineName = schedule['vaccine_name'] as String?;
+              final startDay = schedule['start_day'] as int?;
+              final endDay = schedule['end_day'] as int?;
+              
+              if (vaccineName == null || startDay == null) continue;
+              
+              // Check if current day falls within the vaccine schedule
+              final lastDay = endDay ?? startDay; // Single day if no end_day
+              if (currentDay >= startDay && currentDay <= lastDay) {
+                // Calculate duration display
+                String dayDisplay;
+                if (startDay == lastDay) {
+                  dayDisplay = 'Day $startDay';
+                } else {
+                  final duration = lastDay - startDay + 1;
+                  dayDisplay = 'Days $startDay-$lastDay ($duration days)';
+                }
+                
+                dueVaccines.add({
+                  'name': vaccineName,
+                  'days': dayDisplay,
+                });
+              }
+            }
+            
+            if (dueVaccines.isEmpty) return const SizedBox.shrink();
+            
+            return Container(
+              decoration: BoxDecoration(
+                  color: Colors.blue[50],
+                  borderRadius: BorderRadius.circular(20)),
+              child: Padding(
+                padding: const EdgeInsets.all(16),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(
+                      children: [
+                        Icon(
+                          Icons.medication,
+                          color: Colors.blue.shade700,
+                          size: 28,
+                        ),
+                        const SizedBox(width: 12),
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                'Today\'s Medication',
+                                style: TextStyle(
+                                  fontSize: 18,
+                                  fontWeight: FontWeight.bold,
+                                  color: Colors.blue.shade700,
+                                ),
+                              ),
+                              Text(
+                                '${activeBatch.name} • Day $currentDay',
+                                style: TextStyle(
+                                  fontSize: 13,
+                                  color: Colors.grey.shade600,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 16),
+                    ...dueVaccines.map((vaccine) => Padding(
+                      padding: const EdgeInsets.only(bottom: 8),
+                      child: Row(
+                        children: [
+                          Container(
+                            width: 8,
+                            height: 8,
+                            decoration: BoxDecoration(
+                              color: Colors.blue.shade700,
+                              shape: BoxShape.circle,
+                            ),
+                          ),
+                          const SizedBox(width: 12),
+                          Expanded(
+                            child: Text(
+                              vaccine['name'] as String,
+                              style: TextStyle(
+                                fontSize: 15,
+                                fontWeight: FontWeight.w600,
+                                color: Colors.grey.shade800,
+                              ),
+                            ),
+                          ),
+                          Text(
+                            vaccine['days'] as String,
+                            style: TextStyle(
+                              fontSize: 12,
+                              color: Colors.grey.shade600,
+                            ),
+                          ),
+                        ],
+                      ),
+                    )),
+                  ],
+                ),
+              ),
+            );
+          },
+        );
+      },
+    );
+  }
+
   Widget _buildAlerts(List<BatchAlert> alerts) {
     return Column(
       children: alerts.take(5).map((alert) {
@@ -365,90 +501,110 @@ class _DashboardScreenState extends State<DashboardScreen> {
     );
   }
 
-  Widget _buildDrawer(BuildContext context) {
-    final userId = SupabaseService().currentUserId;
-    
-    return Drawer(
-      child: ListView(
-        padding: EdgeInsets.zero,
-        children: [
-          DrawerHeader(
-            decoration: BoxDecoration(
-              gradient: LinearGradient(
-                colors: [
-                  Theme.of(context).primaryColor,
-                  Theme.of(context).primaryColor.withOpacity(0.7),
-                ],
-                begin: Alignment.topLeft,
-                end: Alignment.bottomRight,
-              ),
-            ),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              mainAxisAlignment: MainAxisAlignment.end,
-              children: [
-                const CircleAvatar(
-                  radius: 30,
-                  backgroundColor: Colors.white,
-                  child: Icon(Icons.person, size: 35, color: Colors.blue),
-                ),
-                const SizedBox(height: 12),
-                const Text(
-                  'Smart Farm',
-                  style: TextStyle(
-                    color: Colors.white,
-                    fontSize: 20,
-                    fontWeight: FontWeight.bold,
-                  ),
-                ),
-                Text(
-                  userId ?? 'Farmer',
-                  style: const TextStyle(
-                    color: Colors.white70,
-                    fontSize: 14,
-                  ),
-                ),
-              ],
-            ),
-          ),
-          ListTile(
-            leading: const Icon(Icons.dashboard),
-            title: const Text('Dashboard'),
-            selected: true,
-            onTap: () {
-              Navigator.pop(context);
-            },
-          ),
-          ListTile(
-            leading: const Icon(Icons.store),
-            title: const Text('Poultry Shop'),
-            onTap: () {
-              Navigator.pop(context);
-              context.push('/shop');
-            },
-          ),
-          const Divider(),
-          ListTile(
-            leading: const Icon(Icons.settings),
-            title: const Text('Settings'),
-            onTap: () {
-              Navigator.pop(context);
-              context.push('/settings');
-            },
-          ),
-          ListTile(
-            leading: const Icon(Icons.logout, color: Colors.red),
-            title: const Text('Logout', style: TextStyle(color: Colors.red)),
-            onTap: () async {
-              Navigator.pop(context);
-              await SupabaseService().signOut();
-              if (context.mounted) {
-                context.go('/login');
-              }
-            },
-          ),
-        ],
-      ),
-    );
+  /// Get the default vaccination schedule from the data source
+  Future<List<Map<String, dynamic>>> _getDefaultVaccinationSchedules() async {
+    // Using start_day and end_day for duration instead of parsing notes
+    return [
+      {
+        'vaccine_name': 'Glucose',
+        'start_day': 1,
+        'end_day': 1,
+      },
+      {
+        'vaccine_name': 'Antibiotic + Vitamin',
+        'start_day': 2,
+        'end_day': 5,
+      },
+      {
+        'vaccine_name': 'Vaccine',
+        'start_day': 6,
+        'end_day': 6,
+      },
+      {
+        'vaccine_name': 'Coccidiostat',
+        'start_day': 7,
+        'end_day': 9,
+      },
+      {
+        'vaccine_name': 'Vitamin',
+        'start_day': 10,
+        'end_day': 10,
+      },
+      {
+        'vaccine_name': 'Vaccine',
+        'start_day': 11,
+        'end_day': 11,
+      },
+      {
+        'vaccine_name': 'Vitamin',
+        'start_day': 12,
+        'end_day': 12,
+      },
+      {
+        'vaccine_name': 'Antibiotics',
+        'start_day': 13,
+        'end_day': 16,
+      },
+      {
+        'vaccine_name': 'Coccidiostat',
+        'start_day': 17,
+        'end_day': 19,
+      },
+      {
+        'vaccine_name': 'Vitamin',
+        'start_day': 20,
+        'end_day': 20,
+      },
+      {
+        'vaccine_name': 'Vaccine',
+        'start_day': 21,
+        'end_day': 21,
+      },
+      {
+        'vaccine_name': 'Antibiotics',
+        'start_day': 22,
+        'end_day': 27,
+      },
+      {
+        'vaccine_name': 'Vaccine',
+        'start_day': 28,
+        'end_day': 28,
+      },
+      {
+        'vaccine_name': 'Vitamin',
+        'start_day': 29,
+        'end_day': 29,
+      },
+      {
+        'vaccine_name': 'Acidifier',
+        'start_day': 30,
+        'end_day': 34,
+      },
+      {
+        'vaccine_name': 'Coccidiostat',
+        'start_day': 35,
+        'end_day': 39,
+      },
+      {
+        'vaccine_name': 'Dewormer',
+        'start_day': 40,
+        'end_day': 40,
+      },
+      {
+        'vaccine_name': 'Vitamin',
+        'start_day': 41,
+        'end_day': 46,
+      },
+      {
+        'vaccine_name': 'Acidifier',
+        'start_day': 47,
+        'end_day': 50,
+      },
+      {
+        'vaccine_name': 'Symptomatic Treatment',
+        'start_day': 51,
+        'end_day': 51,
+      },
+    ];
   }
 }

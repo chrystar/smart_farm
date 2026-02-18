@@ -13,6 +13,7 @@ class UserPreferences extends Equatable {
   final bool missingRecordAlerts;
   final int mortalityThreshold;
   final TimeOfDay? dailyReportReminderTime;
+  final TimeOfDay? vaccinationAlarmTime;
   final List<FeedingSchedule> feedingSchedules;
   final String? defaultBirdType;
   final String? profileImageUrl;
@@ -31,6 +32,7 @@ class UserPreferences extends Equatable {
     this.missingRecordAlerts = true,
     this.mortalityThreshold = 5,
     this.dailyReportReminderTime,
+    this.vaccinationAlarmTime,
     this.feedingSchedules = const [],
     this.defaultBirdType,
     this.profileImageUrl,
@@ -50,6 +52,7 @@ class UserPreferences extends Equatable {
     bool? missingRecordAlerts,
     int? mortalityThreshold,
     TimeOfDay? dailyReportReminderTime,
+    TimeOfDay? vaccinationAlarmTime,
     List<FeedingSchedule>? feedingSchedules,
     String? defaultBirdType,
     String? profileImageUrl,
@@ -68,6 +71,7 @@ class UserPreferences extends Equatable {
       missingRecordAlerts: missingRecordAlerts ?? this.missingRecordAlerts,
       mortalityThreshold: mortalityThreshold ?? this.mortalityThreshold,
       dailyReportReminderTime: dailyReportReminderTime ?? this.dailyReportReminderTime,
+      vaccinationAlarmTime: vaccinationAlarmTime ?? this.vaccinationAlarmTime,
       feedingSchedules: feedingSchedules ?? this.feedingSchedules,
       defaultBirdType: defaultBirdType ?? this.defaultBirdType,
       profileImageUrl: profileImageUrl ?? this.profileImageUrl,
@@ -89,6 +93,7 @@ class UserPreferences extends Equatable {
         missingRecordAlerts,
         mortalityThreshold,
         dailyReportReminderTime,
+        vaccinationAlarmTime,
         feedingSchedules,
         defaultBirdType,
         profileImageUrl,

@@ -13,6 +13,16 @@ class SettingsScreen extends StatefulWidget {
 }
 
 class _SettingsScreenState extends State<SettingsScreen> {
+    TimeOfDay? _alarmTime;
+
+    @override
+    void didChangeDependencies() {
+      super.didChangeDependencies();
+      final preferences = context.read<SettingsProvider>().preferences;
+      if (preferences != null && preferences.vaccinationAlarmTime != null) {
+        _alarmTime = preferences.vaccinationAlarmTime;
+      }
+    }
   @override
   void initState() {
     super.initState();
@@ -110,6 +120,31 @@ class _SettingsScreenState extends State<SettingsScreen> {
                 Card(
                   child: Column(
                     children: [
+                      ListTile(
+                        leading: const Icon(Icons.alarm),
+                        title: const Text('Vaccination Alarm Time'),
+                        subtitle: Text(_alarmTime != null
+                            ? 'At ${_alarmTime!.format(context)}'
+                            : 'Not set'),
+                        trailing: const Icon(Icons.chevron_right),
+                        onTap: () async {
+                          final picked = await showTimePicker(
+                            context: context,
+                            initialTime: _alarmTime ?? const TimeOfDay(hour: 6, minute: 0),
+                          );
+                          if (picked != null) {
+                            setState(() {
+                              _alarmTime = picked;
+                            });
+                            // Save to preferences and reschedule alarm
+                            final userId = SupabaseService().currentUserId;
+                            if (userId != null) {
+                              context.read<SettingsProvider>().setVaccinationAlarmTime(picked, userId);
+                            }
+                          }
+                        },
+                      ),
+                      const Divider(height: 1),
                       ListTile(
                         leading: const Icon(Icons.attach_money),
                         title: const Text('Currency'),

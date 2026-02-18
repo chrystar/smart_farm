@@ -2,9 +2,10 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:intl/intl.dart';
 import 'package:smart_farm/core/constants/theme/app_color.dart';
+import 'package:smart_farm/features/expenses/domain/entities/expense.dart';
+import 'package:smart_farm/features/expenses/presentation/provider/expense_provider.dart';
 import '../../../../core/services/supabase_service.dart';
-import '../../domain/entities/expense.dart';
-import '../provider/expense_provider.dart';
+
 import 'add_expense_screen.dart';
 import 'expense_dashboard_screen.dart';
 import 'expense_group_detail_screen.dart';

@@ -1,3 +1,4 @@
+
 import 'package:flutter/material.dart';
 import '../../domain/entities/user_preferences.dart';
 import '../../domain/usecases/get_preferences_usecase.dart';
@@ -56,6 +57,19 @@ class SettingsProvider with ChangeNotifier {
         notifyListeners();
       },
     );
+  }
+
+    Future<void> setVaccinationAlarmTime(TimeOfDay time, String userId) async {
+    if (_preferences == null) return;
+
+    // Update preferences
+    final updatedPrefs = _preferences!.copyWith(vaccinationAlarmTime: time);
+    await updatePreference(updatedPrefs);
+
+    // Reschedule the vaccination alarm
+    // (Assumes you have a VaccinationAlarmService with a method to reschedule)
+    // import your alarm service and call:
+    // await VaccinationAlarmService.scheduleDailyAlarmAt(time);
   }
 
   Future<void> updateProfile({

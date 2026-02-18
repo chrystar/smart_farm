@@ -1,9 +1,11 @@
 // lib/app.dart
 import 'package:flutter/material.dart';
+import 'package:smart_farm/core/widgets/connectivity_banner.dart';
 import 'package:smart_farm/features/batch/presentation/screens/batch_list_screen.dart';
 import 'package:smart_farm/features/dashboard/presentation/pages/dashboard_screen.dart';
 import 'package:smart_farm/features/expenses/presentation/pages/expenses_screen.dart';
 import 'package:smart_farm/features/sales/presentation/pages/sales_list_screen.dart';
+
 import 'package:smart_farm/features/settings/presentation/pages/settings_screen.dart';
 
 class App extends StatefulWidget {
@@ -53,7 +55,9 @@ class _AppState extends State<App> {
                   .toList(),
             ),
             Expanded(
-              child: _screens[_currentIndex],
+              child: ConnectivityBanner(
+                child: _screens[_currentIndex],
+              ),
             ),
           ],
         ),
@@ -62,7 +66,9 @@ class _AppState extends State<App> {
 
     // Mobile: Bottom navigation
     return Scaffold(
-      body: _screens[_currentIndex],
+      body: ConnectivityBanner(
+        child: _screens[_currentIndex],
+      ),
       bottomNavigationBar: BottomNavigationBar(
         currentIndex: _currentIndex,
         selectedItemColor: Theme.of(context).primaryColor,

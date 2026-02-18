@@ -1,11 +1,13 @@
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import 'package:provider/provider.dart';
+
+import 'package:smart_farm/features/batch/presentation/provider/batch_provider.dart';
+import 'package:smart_farm/features/sales/presentation/pages/record_sale_screen.dart';
 import '../../../../core/services/supabase_service.dart';
 import '../../domain/entities/sale.dart';
 import '../provider/sales_provider.dart';
-import 'record_sale_screen.dart';
-import '../../../batch/presentation/provider/batch_provider.dart';
+
 
 class SalesListScreen extends StatefulWidget {
   const SalesListScreen({super.key});

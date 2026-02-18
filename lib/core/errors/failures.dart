@@ -1,3 +1,5 @@
+import '../utils/error_message_helper.dart';
+
 abstract class Failure {
   final String message;
 
@@ -5,11 +7,13 @@ abstract class Failure {
 }
 
 class ServerFailure extends Failure {
-  ServerFailure(String message) : super(message);
+  ServerFailure(String message) 
+      : super(ErrorMessageHelper.getUserFriendlyMessage(message));
 }
 
 class NetworkFailure extends Failure {
-  NetworkFailure(String message) : super(message);
+  NetworkFailure(String message) 
+      : super(ErrorMessageHelper.getUserFriendlyMessage(message));
 }
 
 class ValidationFailure extends Failure {
