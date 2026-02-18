@@ -1,5 +1,6 @@
 import 'package:connectivity_plus/connectivity_plus.dart';
 import 'package:hive_flutter/hive_flutter.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
 
 class OfflineSyncService {
   static const String _batchesBox = 'batches_offline';
@@ -71,6 +72,31 @@ class OfflineSyncService {
     }
   }
 
+  /// Clear expense from offline storage and queue deletion
+  Future<void> deleteExpenseOffline(String id) async {
+    await _expensesStorage.delete(id);
+    if (!_isOnline) {
+      await _addPendingSync('expense_delete', id, {'id': id});
+    }
+  }
+
+  /// Clear sale from offline storage and queue deletion
+  Future<void> deleteSaleOffline(String id) async {
+    await _salesStorage.delete(id);
+    if (!_isOnline) {
+      await _addPendingSync('sales_delete', id, {'id': id});
+    }
+  }
+
+  /// Queue payment status update for a sale
+  Future<void> saveSalePaymentStatusOffline(String id, String status) async {
+    if (!_isOnline) {
+      await _addPendingSync('sales_payment_status', id, {
+        'payment_status': status,
+      });
+    }
+  }
+
   /// Save expense to offline storage
   Future<void> saveExpenseOffline(String id, Map<String, dynamic> data) async {
     await _expensesStorage.put(id, data);
@@ -133,13 +159,44 @@ class OfflineSyncService {
   Future<void> syncPendingChanges() async {
     if (!_isOnline) return;
 
+    final client = Supabase.instance.client;
     final pending = await getPendingSync();
     for (final item in pending) {
       try {
-        // This will be called from the respective services (BatchService, etc.)
-        // They should implement the actual sync logic
-        // For now, just mark as synced
-        await removePendingSync(item['type'] as String, item['id'] as String);
+        final type = item['type'] as String;
+        final id = item['id'] as String;
+        final data = Map<String, dynamic>.from(item['data'] as Map);
+
+        switch (type) {
+          case 'batch':
+            await client.from('batches').upsert(data, onConflict: 'id');
+            break;
+          case 'batch_delete':
+            await client.from('batches').delete().eq('id', id);
+            break;
+          case 'expense':
+            await client.from('expenses').upsert(data, onConflict: 'id');
+            break;
+          case 'expense_delete':
+            await client.from('expenses').delete().eq('id', id);
+            break;
+          case 'sales':
+            await client.from('sales').upsert(data, onConflict: 'id');
+            break;
+          case 'sales_delete':
+            await client.from('sales').delete().eq('id', id);
+            break;
+          case 'sales_payment_status':
+            await client
+                .from('sales')
+                .update({'payment_status': data['payment_status']})
+                .eq('id', id);
+            break;
+          default:
+            break;
+        }
+
+        await removePendingSync(type, id);
       } catch (e) {
         // Keep in pending if sync fails
         print('Sync error: $e');

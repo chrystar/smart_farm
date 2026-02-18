@@ -1,6 +1,13 @@
+import 'dart:convert';
+import 'dart:io';
+
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:provider/provider.dart';
+import 'package:share_plus/share_plus.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
+import 'package:url_launcher/url_launcher.dart';
+import 'package:path_provider/path_provider.dart';
 import '../../../../core/services/supabase_service.dart';
 import '../../../authentication/presentation/provider/auth_provider.dart';
 import '../provider/settings_provider.dart';
@@ -60,6 +67,99 @@ class _SettingsScreenState extends State<SettingsScreen> {
       if (mounted) {
         context.go('/get-started');
       }
+    }
+  }
+
+  Future<void> _launchUrl(String url) async {
+    final uri = Uri.parse(url);
+    if (await canLaunchUrl(uri)) {
+      await launchUrl(uri, mode: LaunchMode.externalApplication);
+    }
+  }
+
+  Future<void> _exportData() async {
+    final userId = SupabaseService().currentUserId;
+    if (userId == null) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Please login to export data')),
+      );
+      return;
+    }
+
+    try {
+      final client = Supabase.instance.client;
+      final batches = await client
+          .from('batches')
+          .select()
+          .eq('user_id', userId);
+
+      final batchIds = (batches as List)
+          .map((b) => b['id'] as String)
+          .toList();
+
+      final dailyRecords = batchIds.isEmpty
+          ? <dynamic>[]
+          : await client
+              .from('daily_records')
+              .select()
+              .inFilter('batch_id', batchIds);
+
+      final expenses = await client
+          .from('expenses')
+          .select()
+          .eq('user_id', userId);
+
+      final sales = await client
+          .from('sales')
+          .select()
+          .eq('user_id', userId);
+
+      final exportData = {
+        'exported_at': DateTime.now().toIso8601String(),
+        'batches': batches,
+        'daily_records': dailyRecords,
+        'expenses': expenses,
+        'sales': sales,
+      };
+
+      final directory = await getTemporaryDirectory();
+      final timestamp = DateTime.now().millisecondsSinceEpoch;
+      final file = File('${directory.path}/smart_farm_export_$timestamp.json');
+      await file.writeAsString(jsonEncode(exportData));
+
+      await Share.shareXFiles(
+        [XFile(file.path)],
+        subject: 'Smart Farm Data Export',
+        text: 'Your Smart Farm data export is attached.',
+      );
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Export failed: $e')),
+      );
+    }
+  }
+
+  Future<void> _requestAccountDeletion() async {
+    final userId = SupabaseService().currentUserId ?? 'unknown';
+    final email = context.read<AuthProvider>().user?.email ?? 'unknown';
+
+    final uri = Uri(
+      scheme: 'mailto',
+      path: 'support@smartfarm.com',
+      queryParameters: {
+        'subject': 'Account deletion request',
+        'body': 'Please delete my account.\nUser ID: $userId\nEmail: $email',
+      },
+    );
+
+    if (await canLaunchUrl(uri)) {
+      await launchUrl(uri);
+    } else if (mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Unable to open email client')),
+      );
     }
   }
 
@@ -283,12 +383,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                         subtitle: const Text('Download your batch data'),
                         trailing: const Icon(Icons.chevron_right),
                         onTap: () {
-                          // TODO: Implement export functionality
-                          ScaffoldMessenger.of(context).showSnackBar(
-                            const SnackBar(
-                              content: Text('Export feature coming soon'),
-                            ),
-                          );
+                          _exportData();
                         },
                       ),
                       const Divider(height: 1),
@@ -298,12 +393,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                         subtitle: const Text('Permanently delete your account'),
                         trailing: const Icon(Icons.chevron_right),
                         onTap: () {
-                          // TODO: Implement account deletion
-                          ScaffoldMessenger.of(context).showSnackBar(
-                            const SnackBar(
-                              content: Text('Account deletion coming soon'),
-                            ),
-                          );
+                          _requestAccountDeletion();
                         },
                       ),
                     ],
@@ -337,7 +427,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                         title: const Text('Privacy Policy'),
                         trailing: const Icon(Icons.chevron_right),
                         onTap: () {
-                          // TODO: Open privacy policy
+                          _launchUrl('https://www.smartfarm.com/privacy');
                         },
                       ),
                       const Divider(height: 1),
@@ -346,7 +436,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                         title: const Text('Terms of Service'),
                         trailing: const Icon(Icons.chevron_right),
                         onTap: () {
-                          // TODO: Open terms of service
+                          _launchUrl('https://www.smartfarm.com/terms');
                         },
                       ),
                     ],

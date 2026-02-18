@@ -207,7 +207,7 @@ class ExpenseRemoteDataSourceImpl implements ExpenseRemoteDataSource {
     } catch (e) {
       // Mark as deleted offline if not connected
       if (!offlineSyncService.isOnline) {
-        // Will be handled by pending sync queue
+        await offlineSyncService.deleteExpenseOffline(expenseId);
         return;
       }
       throw Exception('Failed to delete expense: $e');

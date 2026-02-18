@@ -3,6 +3,8 @@ import 'package:image_picker/image_picker.dart';
 import 'dart:io';
 
 import 'package:smart_farm/core/constants/theme/app_color.dart';
+import 'package:smart_farm/core/services/supabase_service.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
 
 class DroppingsReportScreen extends StatefulWidget {
   final String batchId;
@@ -103,8 +105,53 @@ class _DroppingsReportScreenState extends State<DroppingsReportScreen> {
       _isSubmitting = true;
     });
 
-    // TODO: Implement actual submission to backend/vet
-    await Future.delayed(const Duration(seconds: 2));
+    try {
+      final userId = SupabaseService().currentUserId;
+      if (userId == null) {
+        throw Exception('User not authenticated');
+      }
+
+      final client = Supabase.instance.client;
+      final imagePath = _capturedImage!.path;
+      final fileExtension = imagePath.contains('.')
+          ? imagePath.split('.').last
+          : 'jpg';
+      final fileName =
+          'droppings_${DateTime.now().millisecondsSinceEpoch}.$fileExtension';
+      final storagePath = '$userId/${widget.batchId}/$fileName';
+
+      await client.storage
+          .from('droppings-reports')
+          .upload(storagePath, File(imagePath));
+
+      final imageUrl = client.storage
+          .from('droppings-reports')
+          .getPublicUrl(storagePath);
+
+      await client.from('droppings_reports').insert({
+        'user_id': userId,
+        'batch_id': widget.batchId,
+        'description': _descriptionController.text.trim(),
+        'notes': _notesController.text.trim().isEmpty
+            ? null
+            : _notesController.text.trim(),
+        'image_url': imageUrl,
+        'created_at': DateTime.now().toIso8601String(),
+      });
+    } catch (e) {
+      if (mounted) {
+        setState(() {
+          _isSubmitting = false;
+        });
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Failed to send report: $e'),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
+      return;
+    }
 
     if (mounted) {
       setState(() {

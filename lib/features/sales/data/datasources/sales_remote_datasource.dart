@@ -77,6 +77,7 @@ class SalesRemoteDataSource {
     } catch (e) {
       // Offline update will be handled by pending sync queue
       if (!offlineSyncService.isOnline) {
+        await offlineSyncService.saveSalePaymentStatusOffline(saleId, status);
         return;
       }
       throw Exception('Failed to update payment status: $e');
@@ -88,6 +89,7 @@ class SalesRemoteDataSource {
       await supabaseClient.from('sales').delete().eq('id', saleId);
     } catch (e) {
       if (!offlineSyncService.isOnline) {
+        await offlineSyncService.deleteSaleOffline(saleId);
         return;
       }
       throw Exception('Failed to delete sale: $e');
