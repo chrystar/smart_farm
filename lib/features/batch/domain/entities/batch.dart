@@ -20,6 +20,8 @@ class Batch extends Equatable {
   final String? expenseLogFolderTitle;
   final String? salesLogFolderId;
   final String? salesLogFolderTitle;
+  final String? profitInsightId;
+  final String? profitInsightTitle;
   final String userId;
   final DateTime createdAt;
   final DateTime updatedAt;
@@ -40,6 +42,8 @@ class Batch extends Equatable {
     this.expenseLogFolderTitle,
     this.salesLogFolderId,
     this.salesLogFolderTitle,
+    this.profitInsightId,
+    this.profitInsightTitle,
     required this.userId,
     required this.createdAt,
     required this.updatedAt,
@@ -89,6 +93,8 @@ class Batch extends Equatable {
     String? expenseLogFolderTitle,
     String? salesLogFolderId,
     String? salesLogFolderTitle,
+    String? profitInsightId,
+    String? profitInsightTitle,
     String? userId,
     DateTime? createdAt,
     DateTime? updatedAt,
@@ -110,6 +116,8 @@ class Batch extends Equatable {
           expenseLogFolderTitle ?? this.expenseLogFolderTitle,
         salesLogFolderId: salesLogFolderId ?? this.salesLogFolderId,
         salesLogFolderTitle: salesLogFolderTitle ?? this.salesLogFolderTitle,
+      profitInsightId: profitInsightId ?? this.profitInsightId,
+      profitInsightTitle: profitInsightTitle ?? this.profitInsightTitle,
       userId: userId ?? this.userId,
       createdAt: createdAt ?? this.createdAt,
       updatedAt: updatedAt ?? this.updatedAt,
@@ -128,10 +136,13 @@ class Batch extends Equatable {
         startDate,
         endDate,
         purchaseCost,
+        currency,
         expenseLogFolderId,
         expenseLogFolderTitle,
         salesLogFolderId,
         salesLogFolderTitle,
+        profitInsightId,
+        profitInsightTitle,
         userId,
         createdAt,
         updatedAt,

@@ -34,6 +34,8 @@ class BatchRepositoryImpl implements BatchRepository {
         'expense_log_folder_title': '$name Expenses',
         'sales_log_folder_id': 'sales-folder-$folderSeed',
         'sales_log_folder_title': '$name Sales',
+        'profit_insight_id': 'profit-insight-$folderSeed',
+        'profit_insight_title': '$name Profit Insight',
         'user_id': userId,
         'status': 'planned',
         'created_at': now.toIso8601String(),

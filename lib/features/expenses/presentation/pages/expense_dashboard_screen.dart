@@ -2,6 +2,9 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:fl_chart/fl_chart.dart';
 import 'package:intl/intl.dart';
+import 'package:smart_farm/features/batch/domain/entities/batch.dart';
+import 'package:smart_farm/features/batch/presentation/provider/batch_provider.dart';
+import '../../../../core/services/supabase_service.dart';
 import '../provider/expense_provider.dart';
 import '../../domain/entities/expense.dart';
 import 'add_expense_screen.dart';
@@ -16,6 +19,7 @@ class ExpenseDashboardScreen extends StatefulWidget {
 
 class _ExpenseDashboardScreenState extends State<ExpenseDashboardScreen> {
   DateTimeRange? _selectedDateRange;
+  String? _selectedBatchId;
 
   String _getCurrencySymbol(String currencyCode) {
     const Map<String, String> currencySymbols = {
@@ -43,7 +47,23 @@ class _ExpenseDashboardScreenState extends State<ExpenseDashboardScreen> {
       start: DateTime(now.year, now.month, 1),
       end: DateTime(now.year, now.month + 1, 0),
     );
+    _loadBatches();
     _loadExpenses();
+  }
+
+  Future<void> _loadBatches() async {
+    final userId = SupabaseService().currentUserId;
+    if (userId == null) return;
+
+    await context.read<BatchProvider>().loadBatches(userId);
+    if (!mounted) return;
+
+    final batches = context.read<BatchProvider>().batches;
+    if (_selectedBatchId == null && batches.isNotEmpty) {
+      setState(() {
+        _selectedBatchId = batches.first.id;
+      });
+    }
   }
 
   Future<void> _loadExpenses() async {
@@ -110,6 +130,20 @@ class _ExpenseDashboardScreenState extends State<ExpenseDashboardScreen> {
       body: Consumer<ExpenseProvider>(
         builder: (context, provider, child) {
           final currencyCode = context.read<SettingsProvider>().preferences?.defaultCurrency ?? 'USD';
+          final batches = context.watch<BatchProvider>().batches;
+          final selectedExists = batches.any((batch) => batch.id == _selectedBatchId);
+          final selectedBatchValue = selectedExists ? _selectedBatchId : null;
+          final filteredExpenses = selectedBatchValue == null
+              ? <Expense>[]
+              : provider.expenses
+                  .where((expense) => expense.batchId == selectedBatchValue)
+                  .toList();
+
+          final totalExpenses = filteredExpenses.fold<double>(
+            0,
+            (sum, expense) => sum + expense.amount,
+          );
+          final categoryBreakdown = _getExpensesByCategory(filteredExpenses);
           
           if (provider.isLoading) {
             return const Center(child: CircularProgressIndicator());
@@ -133,14 +167,14 @@ class _ExpenseDashboardScreenState extends State<ExpenseDashboardScreen> {
             );
           }
 
-          if (provider.expenses.isEmpty) {
+          if (batches.isEmpty) {
             return Center(
               child: Column(
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: [
-                  const Icon(Icons.receipt_long, size: 64, color: Colors.grey),
+                  const Icon(Icons.inbox_outlined, size: 64, color: Colors.grey),
                   const SizedBox(height: 16),
-                  const Text('No expenses for selected period'),
+                  const Text('No batches available'),
                   const SizedBox(height: 16),
                   ElevatedButton.icon(
                     onPressed: () {
@@ -152,18 +186,18 @@ class _ExpenseDashboardScreenState extends State<ExpenseDashboardScreen> {
                       ).then((_) => _loadExpenses());
                     },
                     icon: const Icon(Icons.add),
-                    label: const Text('Add Expense'),
+                    label: const Text('Create/Add from Batch'),
                   ),
                 ],
               ),
             );
           }
 
-          final totalExpenses = provider.getTotalExpenses();
-          final categoryBreakdown = provider.getExpensesByCategory();
-
           return RefreshIndicator(
-            onRefresh: _loadExpenses,
+            onRefresh: () async {
+              await _loadBatches();
+              await _loadExpenses();
+            },
             child: SingleChildScrollView(
               physics: const AlwaysScrollableScrollPhysics(),
               padding: const EdgeInsets.all(16),
@@ -174,8 +208,35 @@ class _ExpenseDashboardScreenState extends State<ExpenseDashboardScreen> {
                   _buildDateRangeCard(),
                   const SizedBox(height: 16),
 
+                  _buildBatchCardsSection(batches, provider.expenses),
+                  const SizedBox(height: 24),
+
+                  if (selectedBatchValue == null)
+                    Card(
+                      elevation: 0,
+                      child: Padding(
+                        padding: const EdgeInsets.all(20),
+                        child: Text(
+                          'Select a batch to view expense analysis.',
+                          style: TextStyle(color: Colors.grey[600]),
+                        ),
+                      ),
+                    )
+                  else if (filteredExpenses.isEmpty)
+                    Card(
+                      elevation: 0,
+                      child: Padding(
+                        padding: const EdgeInsets.all(20),
+                        child: Text(
+                          'No expenses for selected batch in this period.',
+                          style: TextStyle(color: Colors.grey[600]),
+                        ),
+                      ),
+                    )
+                  else ...[
+
                   // Summary Cards
-                  _buildSummaryCards(totalExpenses, provider.expenses.length, currencyCode),
+                  _buildSummaryCards(totalExpenses, filteredExpenses.length, currencyCode),
                
                   const SizedBox(height: 24),
 
@@ -189,7 +250,8 @@ class _ExpenseDashboardScreenState extends State<ExpenseDashboardScreen> {
                     style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
                   ),
                   const SizedBox(height: 16),
-                  _buildTrendChart(provider.expenses, currencyCode),
+                  _buildTrendChart(filteredExpenses, currencyCode),
+                  ],
                 ],
               ),
             ),
@@ -198,14 +260,164 @@ class _ExpenseDashboardScreenState extends State<ExpenseDashboardScreen> {
       ),
       floatingActionButton: FloatingActionButton(
         onPressed: () {
+          final selectedBatch = context
+              .read<BatchProvider>()
+              .batches
+              .where((batch) => batch.id == _selectedBatchId)
+              .cast<Batch?>()
+              .firstWhere((batch) => batch != null, orElse: () => null);
+
           Navigator.push(
             context,
-            MaterialPageRoute(builder: (context) => const AddExpenseScreen()),
+            MaterialPageRoute(
+              builder: (context) => AddExpenseScreen(
+                initialBatchId: _selectedBatchId,
+                initialFolderTitle: selectedBatch?.expenseLogFolderTitle,
+              ),
+            ),
           ).then((_) => _loadExpenses());
         },
         child: const Icon(Icons.add),
       ),
     );
+  }
+
+  Widget _buildBatchCardsSection(
+    List<Batch> batches,
+    List<Expense> allPeriodExpenses,
+  ) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        const Text(
+          'Select Batch for Analysis',
+          style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+        ),
+        const SizedBox(height: 12),
+        ...batches.map((batch) {
+          final isSelected = batch.id == _selectedBatchId;
+          final batchExpenses =
+              allPeriodExpenses.where((e) => e.batchId == batch.id).toList();
+          final batchTotal = batchExpenses.fold<double>(0, (sum, e) => sum + e.amount);
+          final currency = batchExpenses.isNotEmpty ? batchExpenses.first.currency : '\$';
+
+          return Padding(
+            padding: const EdgeInsets.only(bottom: 12),
+            child: Card(
+              elevation: 0,
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(16),
+                side: BorderSide(
+                  color: isSelected ? Theme.of(context).primaryColor : Colors.grey[300]!,
+                  width: isSelected ? 2 : 1,
+                ),
+              ),
+              child: InkWell(
+                borderRadius: BorderRadius.circular(16),
+                onTap: () {
+                  setState(() {
+                    _selectedBatchId = isSelected ? null : batch.id;
+                  });
+                },
+                child: Padding(
+                  padding: const EdgeInsets.all(16),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Row(
+                        children: [
+                          Expanded(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text(
+                                  batch.name,
+                                  style: const TextStyle(
+                                    fontSize: 18,
+                                    fontWeight: FontWeight.w700,
+                                  ),
+                                ),
+                                if (batch.breed != null)
+                                  Text(
+                                    batch.breed!,
+                                    style: TextStyle(color: Colors.grey[600]),
+                                  ),
+                              ],
+                            ),
+                          ),
+                          Icon(
+                            isSelected ? Icons.expand_less : Icons.expand_more,
+                            color: Colors.grey[600],
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 12),
+                      Container(height: 1, color: Colors.grey[200]),
+                      const SizedBox(height: 12),
+                      Row(
+                        children: [
+                          Expanded(
+                            child: _buildBatchInfoItem(
+                              icon: Icons.receipt_long,
+                              label: 'Expenses',
+                              value: '${batchExpenses.length}',
+                            ),
+                          ),
+                          const SizedBox(width: 12),
+                          Expanded(
+                            child: _buildBatchInfoItem(
+                              icon: Icons.attach_money,
+                              label: 'Total',
+                              value: '$currency${batchTotal.toStringAsFixed(0)}',
+                            ),
+                          ),
+                        ],
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            ),
+          );
+        }),
+      ],
+    );
+  }
+
+  Widget _buildBatchInfoItem({
+    required IconData icon,
+    required String label,
+    required String value,
+  }) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Row(
+          children: [
+            Icon(icon, size: 16, color: Colors.grey[600]),
+            const SizedBox(width: 6),
+            Text(
+              label,
+              style: TextStyle(color: Colors.grey[600], fontSize: 12),
+            ),
+          ],
+        ),
+        const SizedBox(height: 4),
+        Text(
+          value,
+          style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w700),
+        ),
+      ],
+    );
+  }
+
+  Map<ExpenseCategory, double> _getExpensesByCategory(List<Expense> expenses) {
+    final categoryTotals = <ExpenseCategory, double>{};
+    for (final expense in expenses) {
+      categoryTotals[expense.category] =
+          (categoryTotals[expense.category] ?? 0) + expense.amount;
+    }
+    return categoryTotals;
   }
 
   Widget _buildDateRangeCard() {

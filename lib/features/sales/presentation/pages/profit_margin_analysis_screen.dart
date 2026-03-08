@@ -6,6 +6,7 @@ import 'package:smart_farm/core/constants/theme/app_color.dart';
 import '../../domain/entities/sale.dart';
 import '../provider/sales_provider.dart';
 import '../../data/services/profit_margin_service.dart';
+import '../../../expenses/domain/entities/expense.dart';
 import '../../../batch/domain/entities/batch.dart';
 import '../../../batch/presentation/provider/batch_provider.dart';
 import '../../../expenses/presentation/provider/expense_provider.dart';
@@ -87,18 +88,18 @@ class _ProfitMarginAnalysisScreenState
         return;
       }
 
-      // Set initial batch ID if not set
       if (_selectedBatchId == null) {
-        _selectedBatchId = batches.first.id;
+        setState(() => _loading = false);
+        return;
       }
 
-      // Find the selected batch - ensure it's not null
+      // Find selected batch from provided context
       late Batch selectedBatch;
       try {
         selectedBatch = batches.firstWhere((b) => b.id == _selectedBatchId);
       } catch (e) {
-        selectedBatch = batches.first;
-        _selectedBatchId = selectedBatch.id;
+        setState(() => _loading = false);
+        return;
       }
 
       final batchSales =
@@ -113,14 +114,6 @@ class _ProfitMarginAnalysisScreenState
       // Load daily records to get mortality data
       batchProvider.loadDailyRecords(selectedBatch.id);
       debugPrint('✅ DEBUG: Called loadDailyRecords for batch ${selectedBatch.id}');
-
-      // FALLBACK: If no expenses are linked to batch, use ALL expenses
-      // This handles cases where expenses weren't assigned to a batch
-      if (batchExpenses.isEmpty && expenses.isNotEmpty) {
-        print(
-            'WARNING: No expenses linked to batch. Using ALL expenses as fallback.');
-        batchExpenses = expenses;
-      }
 
       setState(() {
         _analysis = ProfitMarginService.analyzeBatch(
@@ -160,11 +153,6 @@ class _ProfitMarginAnalysisScreenState
           sales.where((s) => s.batchId == selectedBatch.id).toList();
       var batchExpenses =
           expenses.where((e) => e.batchId == selectedBatch.id).toList();
-
-      // Fallback: If no expenses linked to batch, use all expenses
-      if (batchExpenses.isEmpty && expenses.isNotEmpty) {
-        batchExpenses = expenses;
-      }
 
       // Filter expenses based on selected group
       if (_expenseFilterOption != 'all') {
@@ -224,11 +212,18 @@ class _ProfitMarginAnalysisScreenState
           Icon(Icons.inventory_2, size: 60, color: Colors.grey[300]),
           const SizedBox(height: 16),
           Text(
-            'No batches available',
+            'No linked batch context found',
             style: TextStyle(
               fontSize: 18,
               color: Colors.grey[600],
               fontWeight: FontWeight.w500,
+            ),
+          ),
+          const SizedBox(height: 8),
+          Text(
+            'Open this screen from a selected batch in Sales Analysis.',
+            style: TextStyle(
+              color: Colors.grey[500],
             ),
           ),
         ],
@@ -771,9 +766,17 @@ class _ProfitMarginAnalysisScreenState
       }
     }
 
-    // Get grouped expenses from provider
+    // Get grouped expenses for selected batch only
     final expenseProvider = context.read<ExpenseProvider>();
-    final groupedExpenses = expenseProvider.getExpensesGrouped();
+    final groupedExpenses = <String?, List<Expense>>{};
+    if (_selectedBatchId != null) {
+      final batchExpenses = expenseProvider.expenses
+          .where((expense) => expense.batchId == _selectedBatchId)
+          .toList();
+      for (final expense in batchExpenses) {
+        groupedExpenses.putIfAbsent(expense.groupTitle, () => []).add(expense);
+      }
+    }
 
     // Calculate total cost per group
     final groupCosts = <String?, double>{};

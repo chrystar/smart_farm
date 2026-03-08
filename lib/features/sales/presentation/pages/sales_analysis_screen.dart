@@ -273,22 +273,24 @@ class _SalesAnalysisScreenState extends State<SalesAnalysisScreen> {
                     children: [
                       _buildDateRangeSelector(),
                       const SizedBox(height: 16),
-                      _buildFilters(),
+                      _buildBatchCards(),
                       const SizedBox(height: 24),
-                      _buildMetricsCards(),
-                      const SizedBox(height: 24),
-                      _buildPaymentStatusBreakdown(),
-                      const SizedBox(height: 24),
-                      _buildRevenueChart(),
-                      const SizedBox(height: 24),
-                      _buildQuantityChart(),
-                      const SizedBox(height: 24),
-                      _buildSaleTypeBreakdown(),
-                      const SizedBox(height: 24),
-                      _buildProfitInsights(),
-                      const SizedBox(height: 24),
-                      _buildTopBuyers(),
-                      const SizedBox(height: 24),
+                      if (_selectedBatchId != null) ...[
+                        _buildMetricsCards(),
+                        const SizedBox(height: 24),
+                        _buildPaymentStatusBreakdown(),
+                        const SizedBox(height: 24),
+                        _buildRevenueChart(),
+                        const SizedBox(height: 24),
+                        _buildQuantityChart(),
+                        const SizedBox(height: 24),
+                        _buildSaleTypeBreakdown(),
+                        const SizedBox(height: 24),
+                        _buildProfitInsights(),
+                        const SizedBox(height: 24),
+                        _buildTopBuyers(),
+                        const SizedBox(height: 24),
+                      ],
                     ],
                   ),
                 ),
@@ -336,6 +338,199 @@ class _SalesAnalysisScreenState extends State<SalesAnalysisScreen> {
           ),
         ),
       ),
+    );
+  }
+
+  Widget _buildBatchCards() {
+    final batchProvider = context.watch<BatchProvider>();
+    final batches = batchProvider.batches;
+    final salesProvider = context.watch<SalesProvider>();
+
+    if (batches.isEmpty) {
+      return Card(
+        child: Padding(
+          padding: const EdgeInsets.all(32),
+          child: Center(
+            child: Column(
+              children: [
+                Icon(Icons.inbox_outlined, size: 64, color: Colors.grey[400]),
+                const SizedBox(height: 12),
+                Text(
+                  'No batches available',
+                  style: TextStyle(color: Colors.grey[600], fontSize: 16),
+                ),
+              ],
+            ),
+          ),
+        ),
+      );
+    }
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        const Text(
+          'Select Batch for Analysis',
+          style: TextStyle(
+            fontSize: 18,
+            fontWeight: FontWeight.bold,
+          ),
+        ),
+        const SizedBox(height: 12),
+        ...batches.map((batch) {
+          final isSelected = batch.id == _selectedBatchId;
+          final batchSales = salesProvider.sales
+              .where((s) => 
+                  s.batchId == batch.id &&
+                  s.saleDate.isAfter(_startDate.subtract(const Duration(days: 1))) &&
+                  s.saleDate.isBefore(_endDate.add(const Duration(days: 1))))
+              .toList();
+          
+          final totalAmount = batchSales.fold<double>(0, (sum, s) => sum + s.totalAmount);
+          final totalQty = batchSales.fold<int>(0, (sum, s) => sum + s.quantity);
+
+          return Padding(
+            padding: const EdgeInsets.only(bottom: 12),
+            child: Card(
+              elevation: 0,
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(12),
+                side: BorderSide(
+                  color: isSelected ? AppColors.primaryGreen : Colors.grey[300]!,
+                  width: isSelected ? 2 : 1,
+                ),
+              ),
+              child: InkWell(
+                onTap: () {
+                  setState(() {
+                    _selectedBatchId = isSelected ? null : batch.id;
+                  });
+                  _analyzeData();
+                },
+                borderRadius: BorderRadius.circular(12),
+                child: Padding(
+                  padding: const EdgeInsets.all(16),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Row(
+                        children: [
+                          Expanded(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text(
+                                  batch.name,
+                                  style: const TextStyle(
+                                    fontSize: 16,
+                                    fontWeight: FontWeight.bold,
+                                  ),
+                                ),
+                                if (batch.breed != null)
+                                  Text(
+                                    batch.breed!,
+                                    style: TextStyle(
+                                      fontSize: 12,
+                                      color: Colors.grey[600],
+                                    ),
+                                  ),
+                              ],
+                            ),
+                          ),
+                          if (isSelected)
+                            Container(
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 8,
+                                vertical: 4,
+                              ),
+                              decoration: BoxDecoration(
+                                color: AppColors.primaryGreen.withOpacity(0.2),
+                                borderRadius: BorderRadius.circular(6),
+                              ),
+                              child: const Text(
+                                'Selected',
+                                style: TextStyle(
+                                  fontSize: 11,
+                                  fontWeight: FontWeight.w600,
+                                  color: AppColors.primaryGreen,
+                                ),
+                              ),
+                            ),
+                        ],
+                      ),
+                      const SizedBox(height: 12),
+                      Container(height: 1, color: Colors.grey[200]),
+                      const SizedBox(height: 12),
+                      Row(
+                        children: [
+                          Expanded(
+                            child: _buildBatchInfoItem(
+                              icon: Icons.shopping_bag_outlined,
+                              label: 'Sales',
+                              value: '${batchSales.length}',
+                            ),
+                          ),
+                          const SizedBox(width: 12),
+                          Expanded(
+                            child: _buildBatchInfoItem(
+                              icon: Icons.inventory_2_outlined,
+                              label: 'Quantity',
+                              value: '$totalQty',
+                            ),
+                          ),
+                          const SizedBox(width: 12),
+                          Expanded(
+                            child: _buildBatchInfoItem(
+                              icon: Icons.attach_money,
+                              label: 'Revenue',
+                              value: batchSales.isNotEmpty 
+                                  ? '${batchSales.first.currency}${totalAmount.toStringAsFixed(0)}'
+                                  : '\$0',
+                            ),
+                          ),
+                        ],
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            ),
+          );
+        }),
+      ],
+    );
+  }
+
+  Widget _buildBatchInfoItem({
+    required IconData icon,
+    required String label,
+    required String value,
+  }) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Row(
+          children: [
+            Icon(icon, size: 14, color: Colors.grey[600]),
+            const SizedBox(width: 4),
+            Text(
+              label,
+              style: TextStyle(
+                fontSize: 11,
+                color: Colors.grey[600],
+              ),
+            ),
+          ],
+        ),
+        const SizedBox(height: 4),
+        Text(
+          value,
+          style: const TextStyle(
+            fontSize: 14,
+            fontWeight: FontWeight.bold,
+          ),
+        ),
+      ],
     );
   }
 
@@ -1345,6 +1540,15 @@ class _SalesAnalysisScreenState extends State<SalesAnalysisScreen> {
               icon: const Icon(Icons.trending_up),
               label: const Text('View Detailed'),
               onPressed: () {
+                if (_selectedBatchId == null) {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(
+                      content: Text('Select a batch to view detailed profit analysis'),
+                      backgroundColor: Colors.orange,
+                    ),
+                  );
+                  return;
+                }
                 // Navigate to profit margin analysis screen with selected batch
                 Navigator.push(
                   context,
