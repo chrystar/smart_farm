@@ -125,6 +125,27 @@ class ExpenseRemoteDataSourceImpl implements ExpenseRemoteDataSource {
 
   @override
   Future<ExpenseModel> createExpense(ExpenseModel expense) async {
+    String? groupId = expense.groupId;
+    String? groupTitle = expense.groupTitle;
+
+    if (expense.batchId != null && (groupId == null || groupTitle == null)) {
+      try {
+        final batch = await supabaseClient
+            .from('batches')
+            .select('expense_log_folder_id, expense_log_folder_title, name')
+            .eq('id', expense.batchId!)
+            .maybeSingle();
+
+        if (batch != null) {
+          groupId ??= batch['expense_log_folder_id'] as String?;
+          groupTitle ??= batch['expense_log_folder_title'] as String?;
+          groupTitle ??= '${batch['name']} Expenses';
+        }
+      } catch (_) {
+        // Continue without folder metadata if batch lookup fails
+      }
+    }
+
     final data = {
       'user_id': expense.userId,
       'amount': expense.amount,
@@ -134,6 +155,8 @@ class ExpenseRemoteDataSourceImpl implements ExpenseRemoteDataSource {
       'description': expense.description,
       'date': expense.date.toIso8601String(),
       'batch_id': expense.batchId,
+      'group_id': groupId,
+      'group_title': groupTitle,
     };
 
     try {

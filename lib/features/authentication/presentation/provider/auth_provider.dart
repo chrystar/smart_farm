@@ -58,6 +58,7 @@ class AuthProvider extends ChangeNotifier {
         _error = failure.message;
         _user = null;
         success = false;
+        print('Registration failed: ${failure.message}');
       },
       (user) async {
         _user = user;
@@ -70,6 +71,7 @@ class AuthProvider extends ChangeNotifier {
         }
         _error = null;
         success = true;
+        print('Registration successful for user: ${user.name}');
       },
     );
 

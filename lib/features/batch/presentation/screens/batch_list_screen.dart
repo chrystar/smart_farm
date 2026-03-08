@@ -182,6 +182,7 @@ class _BatchListScreenState extends State<BatchListScreen> {
         icon: const Icon(Icons.add),
         label: const Text('New Batch'),
         backgroundColor: AppColors.primaryGreen,
+        foregroundColor: AppColors.primaryText,
       ),
     );
   }

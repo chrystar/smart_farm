@@ -30,9 +30,34 @@ class ErrorMessageHelper {
       return 'You don\'t have permission to perform this action.';
     }
 
+    // Email already exists
+    if (lowerError.contains('duplicate') || 
+        lowerError.contains('already exists') ||
+        lowerError.contains('unique violation')) {
+      return 'This email is already registered. Please use a different email or login.';
+    }
+
+    // Invalid email
+    if (lowerError.contains('invalid email') ||
+        lowerError.contains('invalid_credentials')) {
+      return 'Please enter a valid email address.';
+    }
+
+    // Weak password
+    if (lowerError.contains('password') && 
+        (lowerError.contains('too short') || 
+         lowerError.contains('weak'))) {
+      return 'Password is too weak. Please use a stronger password (at least 6 characters).';
+    }
+
     // Not found errors
     if (lowerError.contains('not found') || lowerError.contains('404')) {
       return 'The requested data was not found.';
+    }
+
+    // Missing profiles table error (migration not applied)
+    if (lowerError.contains('relation') && lowerError.contains('profiles')) {
+      return 'Database setup incomplete. Please contact support or check the setup guide.';
     }
 
     // Generic database errors

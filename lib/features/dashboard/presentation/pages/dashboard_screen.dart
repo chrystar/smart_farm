@@ -1,7 +1,15 @@
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import 'package:provider/provider.dart';
+import 'package:smart_farm/core/constants/theme/app_color.dart';
+import 'package:smart_farm/features/learning/presentation/screens/articles_screen.dart';
+import 'package:smart_farm/features/learning/presentation/screens/creator_farmers_screen.dart';
+import 'package:smart_farm/features/learning/presentation/screens/creator_signup_screen.dart';
+import 'package:smart_farm/features/subscription/subscription_provider.dart';
+import 'package:smart_farm/features/subscription/subscription_screen.dart';
 import '../../../../core/services/supabase_service.dart';
+import '../../../notification/services/notification_service.dart';
+import '../../../notification/screens/notifications_screen.dart';
 import '../../domain/entities/dashboard_stats.dart';
 import '../provider/dashboard_provider.dart';
 import '../widgets/dashboard_charts.dart';
@@ -21,6 +29,10 @@ class _DashboardScreenState extends State<DashboardScreen> {
     // Defer loading to after first frame to avoid notify during build
     WidgetsBinding.instance.addPostFrameCallback((_) {
       _loadDashboard();
+      final userId = SupabaseService().currentUserId;
+      if (userId != null) {
+        context.read<BatchProvider>().loadBatches(userId);
+      }
     });
   }
 
@@ -29,6 +41,67 @@ class _DashboardScreenState extends State<DashboardScreen> {
     if (userId != null) {
       await context.read<DashboardProvider>().loadDashboard(userId);
     }
+  }
+
+  Widget? _currentScreen;
+  int _currentIndex = 0;
+
+  void _openScreen(Widget screen) {
+    setState(() {
+      _currentScreen = screen;
+    });
+  }
+
+  final _navItems = const [
+    (icon: Icons.dashboard, label: 'Home'),
+    (icon: Icons.agriculture, label: 'Batches'),
+    (icon: Icons.receipt_long, label: 'Expenses'),
+    (icon: Icons.store, label: 'Sales'),
+    (icon: Icons.settings, label: 'Settings'),
+  ];
+
+  Future<void> _showUpgradeDialog() async {
+    await showDialog<void>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Premium Feature'),
+        content: const Text('Upgrade to Premium to access this feature.'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('Not now'),
+          ),
+          ElevatedButton(
+            onPressed: () {
+              Navigator.pop(context);
+              _openScreen(const SubscriptionScreen());
+            },
+            child: const Text('View plans'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  void _navigateTo(Widget screen) {
+    _openScreen(screen);
+    Navigator.push(context,
+        MaterialPageRoute(builder: (context) => screen)); // Close drawer
+  }
+
+  void _handlePremiumNavigation(Widget screen) {
+    // Allow CreatorFarmersScreen for all users
+    if (screen is CreatorFarmersScreen || screen.runtimeType.toString() == 'CreatorFarmersScreen') {
+      _navigateTo(screen);
+      return;
+    }
+    final isPremium = context.read<SubscriptionProvider>().isPremium;
+    if (isPremium) {
+      _navigateTo(screen);
+      return;
+    }
+    Navigator.pop(context);
+    _showUpgradeDialog();
   }
 
   String _getCurrencySymbol(String? currency) {
@@ -68,12 +141,57 @@ class _DashboardScreenState extends State<DashboardScreen> {
         ),
         centerTitle: true,
         actions: [
-          IconButton(
-            icon: const Icon(Icons.notifications_none),
-            onPressed: () {},
+          Consumer<NotificationService>(
+            builder: (context, notificationService, child) {
+              return Stack(
+                children: [
+                  IconButton(
+                    icon: const Icon(Icons.notifications_none),
+                    onPressed: () async {
+                      await Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                          builder: (context) => const NotificationsScreen(),
+                        ),
+                      );
+                      // Reload notifications after returning
+                      notificationService.loadNotifications();
+                    },
+                  ),
+                  if (notificationService.unreadCount > 0)
+                    Positioned(
+                      right: 8,
+                      top: 8,
+                      child: Container(
+                        padding: const EdgeInsets.all(4),
+                        decoration: const BoxDecoration(
+                          color: Colors.red,
+                          shape: BoxShape.circle,
+                        ),
+                        constraints: const BoxConstraints(
+                          minWidth: 18,
+                          minHeight: 18,
+                        ),
+                        child: Text(
+                          notificationService.unreadCount > 9
+                              ? '9+'
+                              : notificationService.unreadCount.toString(),
+                          style: const TextStyle(
+                            color: Colors.white,
+                            fontSize: 10,
+                            fontWeight: FontWeight.bold,
+                          ),
+                          textAlign: TextAlign.center,
+                        ),
+                      ),
+                    ),
+                ],
+              );
+            },
           ),
         ],
       ),
+      drawer: _buildDrawer(),
       body: Consumer<DashboardProvider>(
         builder: (context, provider, child) {
           if (provider.isLoading) {
@@ -112,6 +230,8 @@ class _DashboardScreenState extends State<DashboardScreen> {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
+                  const SizedBox(height: 18),
+
                   _buildVaccineBatche(),
                   const SizedBox(height: 24),
 
@@ -320,14 +440,14 @@ class _DashboardScreenState extends State<DashboardScreen> {
             if (!snapshot.hasData) return const SizedBox.shrink();
             final schedules = snapshot.data!;
             final dueVaccines = <Map<String, dynamic>>[];
-            
+
             for (final schedule in schedules) {
               final vaccineName = schedule['vaccine_name'] as String?;
               final startDay = schedule['start_day'] as int?;
               final endDay = schedule['end_day'] as int?;
-              
+
               if (vaccineName == null || startDay == null) continue;
-              
+
               // Check if current day falls within the vaccine schedule
               final lastDay = endDay ?? startDay; // Single day if no end_day
               if (currentDay >= startDay && currentDay <= lastDay) {
@@ -339,19 +459,19 @@ class _DashboardScreenState extends State<DashboardScreen> {
                   final duration = lastDay - startDay + 1;
                   dayDisplay = 'Days $startDay-$lastDay ($duration days)';
                 }
-                
+
                 dueVaccines.add({
                   'name': vaccineName,
                   'days': dayDisplay,
                 });
               }
             }
-            
+
             if (dueVaccines.isEmpty) return const SizedBox.shrink();
-            
+
             return Container(
               decoration: BoxDecoration(
-                  color: Colors.blue[50],
+                  color: AppColors.primaryGreen,
                   borderRadius: BorderRadius.circular(20)),
               child: Padding(
                 padding: const EdgeInsets.all(16),
@@ -360,9 +480,9 @@ class _DashboardScreenState extends State<DashboardScreen> {
                   children: [
                     Row(
                       children: [
-                        Icon(
+                        const Icon(
                           Icons.medication,
-                          color: Colors.blue.shade700,
+                          color: AppColors.success,
                           size: 28,
                         ),
                         const SizedBox(width: 12),
@@ -370,19 +490,19 @@ class _DashboardScreenState extends State<DashboardScreen> {
                           child: Column(
                             crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
-                              Text(
+                              const Text(
                                 'Today\'s Medication',
                                 style: TextStyle(
                                   fontSize: 18,
                                   fontWeight: FontWeight.bold,
-                                  color: Colors.blue.shade700,
+                                  color: AppColors.primaryText,
                                 ),
                               ),
                               Text(
                                 '${activeBatch.name} • Day $currentDay',
-                                style: TextStyle(
+                                style: const TextStyle(
                                   fontSize: 13,
-                                  color: Colors.grey.shade600,
+                                  color: AppColors.secondaryText,
                                 ),
                               ),
                             ],
@@ -392,38 +512,38 @@ class _DashboardScreenState extends State<DashboardScreen> {
                     ),
                     const SizedBox(height: 16),
                     ...dueVaccines.map((vaccine) => Padding(
-                      padding: const EdgeInsets.only(bottom: 8),
-                      child: Row(
-                        children: [
-                          Container(
-                            width: 8,
-                            height: 8,
-                            decoration: BoxDecoration(
-                              color: Colors.blue.shade700,
-                              shape: BoxShape.circle,
-                            ),
-                          ),
-                          const SizedBox(width: 12),
-                          Expanded(
-                            child: Text(
-                              vaccine['name'] as String,
-                              style: TextStyle(
-                                fontSize: 15,
-                                fontWeight: FontWeight.w600,
-                                color: Colors.grey.shade800,
+                          padding: const EdgeInsets.only(bottom: 8),
+                          child: Row(
+                            children: [
+                              Container(
+                                width: 8,
+                                height: 8,
+                                decoration: const BoxDecoration(
+                                  color: AppColors.success,
+                                  shape: BoxShape.circle,
+                                ),
                               ),
-                            ),
+                              const SizedBox(width: 12),
+                              Expanded(
+                                child: Text(
+                                  vaccine['name'] as String,
+                                  style: const TextStyle(
+                                    fontSize: 15,
+                                    fontWeight: FontWeight.w600,
+                                    color: AppColors.primaryText,
+                                  ),
+                                ),
+                              ),
+                              Text(
+                                vaccine['days'] as String,
+                                style: const TextStyle(
+                                  fontSize: 12,
+                                  color: AppColors.secondaryText,
+                                ),
+                              ),
+                            ],
                           ),
-                          Text(
-                            vaccine['days'] as String,
-                            style: TextStyle(
-                              fontSize: 12,
-                              color: Colors.grey.shade600,
-                            ),
-                          ),
-                        ],
-                      ),
-                    )),
+                        )),
                   ],
                 ),
               ),
@@ -606,5 +726,103 @@ class _DashboardScreenState extends State<DashboardScreen> {
         'end_day': 51,
       },
     ];
+  }
+
+  Widget _buildDrawer() {
+    return Drawer(
+      child: ListView(
+        padding: EdgeInsets.zero,
+        children: [
+          DrawerHeader(
+            decoration: const BoxDecoration(
+              color: AppColors.primaryGreen,
+            ),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              mainAxisAlignment: MainAxisAlignment.end,
+              children: [
+                Container(
+                  width: 60,
+                  height: 60,
+                  decoration: BoxDecoration(
+                    color: Colors.white.withOpacity(0.2),
+                    borderRadius: BorderRadius.circular(30),
+                  ),
+                  child: const Icon(
+                    Icons.agriculture,
+                    color: Colors.white,
+                    size: 30,
+                  ),
+                ),
+                const SizedBox(height: 12),
+                const Text(
+                  'SmartFarm',
+                  style: TextStyle(
+                    color: Colors.white,
+                    fontSize: 24,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(height: 16),
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 16),
+            child: Text(
+              'LEARNING',
+              style: Theme.of(context).textTheme.labelMedium?.copyWith(
+                    color: Colors.grey[600],
+                    fontWeight: FontWeight.bold,
+                  ),
+            ),
+          ),
+          const SizedBox(height: 8),
+          ListTile(
+            leading: const Icon(Icons.article, color: AppColors.primaryGreen),
+            title: const Text('Articles'),
+            onTap: () => _navigateTo(const ArticlesScreen()),
+          ),
+          ListTile(
+            leading: const Icon(Icons.person_4, color: AppColors.primaryGreen),
+            title: const Text('Creator Farmers'),
+            onTap: () => _handlePremiumNavigation(const CreatorFarmersScreen()),
+          ),
+          const SizedBox(height: 8),
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 16),
+            child: ElevatedButton.icon(
+              onPressed: () =>
+                  _handlePremiumNavigation(const CreatorSignupScreen()),
+              icon: const Icon(Icons.star),
+              label: const Text('Become a Creator'),
+              style: ElevatedButton.styleFrom(
+                backgroundColor: AppColors.primaryGreen,
+                foregroundColor: Colors.white,
+                minimumSize: const Size(double.infinity, 48),
+              ),
+            ),
+          ),
+     
+          const SizedBox(height: 48),
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 16),
+            child: Text(
+              'SUBSCRIPTION',
+              style: Theme.of(context).textTheme.labelMedium?.copyWith(
+                    color: Colors.grey[600],
+                    fontWeight: FontWeight.bold,
+                  ),
+            ),
+          ),
+          ListTile(
+            leading: const Icon(Icons.workspace_premium,
+                color: AppColors.primaryGreen),
+            title: const Text('Subscription'),
+            onTap: () => _navigateTo(const SubscriptionScreen()),
+          ),
+        ],
+      ),
+    );
   }
 }

@@ -3,6 +3,7 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:smart_farm/app.dart';
+import 'package:smart_farm/core/constants/theme/app_color.dart';
 import 'package:smart_farm/core/services/preferences_service.dart';
 import 'package:smart_farm/features/authentication/presentation/provider/auth_provider.dart';
 import 'package:smart_farm/features/authentication/presentation/screens/getstarted.dart';
@@ -53,7 +54,7 @@ class _SplashScreenState extends State<SplashScreen> {
     // Example splash with logo and app name
   
     return Scaffold(
-      backgroundColor: Theme.of(context).primaryColor,
+      backgroundColor: AppColors.primaryGreen,
     
       body: Center(
         child: Column(

@@ -1,5 +1,6 @@
 import 'package:fl_chart/fl_chart.dart';
 import 'package:flutter/material.dart';
+import 'package:smart_farm/core/constants/theme/app_color.dart';
 import '../../domain/entities/dashboard_stats.dart';
 
 class BatchStatusPieChart extends StatelessWidget {
@@ -25,7 +26,7 @@ class BatchStatusPieChart extends StatelessWidget {
               PieChartSectionData(
                 value: stats.totalActiveBatches.toDouble(),
                 title: '${stats.totalActiveBatches}',
-                color: Colors.green,
+                color: AppColors.primaryGreen,
                 radius: 60,
                 titleStyle: const TextStyle(
                   fontSize: 16,
@@ -76,7 +77,7 @@ class BatchStatusLegend extends StatelessWidget {
     return Row(
       mainAxisAlignment: MainAxisAlignment.spaceEvenly,
       children: [
-        _buildLegendItem('Active', stats.totalActiveBatches, Colors.green),
+        _buildLegendItem('Active', stats.totalActiveBatches, AppColors.primaryGreen),
         _buildLegendItem('Planned', stats.totalPlannedBatches, Colors.orange),
         _buildLegendItem('Completed', stats.totalCompletedBatches, Colors.blue),
       ],

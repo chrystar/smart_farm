@@ -12,7 +12,7 @@ class AppColors {
   static const Color primaryTextColor = Color(0xFF6A8F80);
 
   // Suggested Additional Colors
-  static const Color primaryGreen = Color(0xFFC2E96A); // Farm Green
+  static const Color primaryGreen = Colors.green; // Farm Green
   static const Color accentYellow = Color(0xFFFFD700); // Golden Yellow
 
   // Text & Icon Colors

@@ -1,10 +1,17 @@
 // lib/app.dart
 import 'package:flutter/material.dart';
+import 'package:provider/provider.dart';
+import 'package:smart_farm/core/constants/theme/app_color.dart';
 import 'package:smart_farm/core/widgets/connectivity_banner.dart';
 import 'package:smart_farm/features/batch/presentation/screens/batch_list_screen.dart';
 import 'package:smart_farm/features/dashboard/presentation/pages/dashboard_screen.dart';
 import 'package:smart_farm/features/expenses/presentation/pages/expenses_screen.dart';
+import 'package:smart_farm/features/learning/presentation/screens/articles_screen.dart';
+import 'package:smart_farm/features/learning/presentation/screens/creator_farmers_screen.dart';
+import 'package:smart_farm/features/learning/presentation/screens/creator_signup_screen.dart';
 import 'package:smart_farm/features/sales/presentation/pages/sales_list_screen.dart';
+import 'package:smart_farm/features/subscription/subscription_provider.dart';
+import 'package:smart_farm/features/subscription/subscription_screen.dart';
 
 import 'package:smart_farm/features/settings/presentation/pages/settings_screen.dart';
 
@@ -16,6 +23,7 @@ class App extends StatefulWidget {
 
 class _AppState extends State<App> {
   int _currentIndex = 0;
+  Widget? _currentScreen;
 
   final _screens = const [
     DashboardScreen(),
@@ -26,7 +34,7 @@ class _AppState extends State<App> {
   ];
 
   final _navItems = const [
-    (icon: Icons.dashboard, label: 'Dashboard'),
+    (icon: Icons.dashboard, label: 'Home'),
     (icon: Icons.agriculture, label: 'Batches'),
     (icon: Icons.receipt_long, label: 'Expenses'),
     (icon: Icons.store, label: 'Sales'),
@@ -34,47 +42,40 @@ class _AppState extends State<App> {
   ];
 
   @override
-  Widget build(BuildContext context) {
-    final isWeb = MediaQuery.of(context).size.width > 800;
+  void initState() {
+    super.initState();
+    _currentScreen = _screens[_currentIndex];
+  }
 
-    if (isWeb) {
-      // Desktop: Sidebar navigation
-      return Scaffold(
-        body: Row(
-          children: [
-            NavigationRail(
-              selectedIndex: _currentIndex,
-              onDestinationSelected: (index) => setState(() => _currentIndex = index),
-              labelType: NavigationRailLabelType.all,
-              backgroundColor: Theme.of(context).primaryColor.withOpacity(0.1),
-              destinations: _navItems
-                  .map((item) => NavigationRailDestination(
-                        icon: Icon(item.icon),
-                        label: Text(item.label),
-                      ))
-                  .toList(),
-            ),
-            Expanded(
-              child: ConnectivityBanner(
-                child: _screens[_currentIndex],
-              ),
-            ),
-          ],
-        ),
-      );
-    }
+
+
+  
+
+ 
+
+  @override
+  Widget build(BuildContext context) {
+    
 
     // Mobile: Bottom navigation
     return Scaffold(
+    
       body: ConnectivityBanner(
-        child: _screens[_currentIndex],
+        child: _currentScreen ?? _screens[_currentIndex],
       ),
       bottomNavigationBar: BottomNavigationBar(
         currentIndex: _currentIndex,
-        selectedItemColor: Theme.of(context).primaryColor,
-        unselectedItemColor: Colors.grey,
+        selectedItemColor: AppColors.primaryGreenSwatch,
+        unselectedItemColor: AppColors.secondaryText,
+        showSelectedLabels: true,
+        showUnselectedLabels: false,
         type: BottomNavigationBarType.fixed,
-        onTap: (i) => setState(() => _currentIndex = i),
+        onTap: (i) {
+          setState(() {
+            _currentIndex = i;
+            _currentScreen = null; // Reset custom screen
+          });
+        },
         items: _navItems
             .map((item) => BottomNavigationBarItem(
                   icon: Icon(item.icon),
@@ -84,9 +85,6 @@ class _AppState extends State<App> {
       ),
     );
   }
+
+
 }
-
-
-
-
-

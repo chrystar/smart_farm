@@ -8,6 +8,11 @@ import 'package:share_plus/share_plus.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:url_launcher/url_launcher.dart';
 import 'package:path_provider/path_provider.dart';
+import 'package:pdf/pdf.dart';
+import 'package:pdf/widgets.dart' as pw;
+import 'package:intl/intl.dart';
+import 'package:smart_farm/features/subscription/subscription_provider.dart';
+import 'package:smart_farm/features/subscription/subscription_screen.dart';
 import '../../../../core/services/supabase_service.dart';
 import '../../../authentication/presentation/provider/auth_provider.dart';
 import '../provider/settings_provider.dart';
@@ -20,16 +25,45 @@ class SettingsScreen extends StatefulWidget {
 }
 
 class _SettingsScreenState extends State<SettingsScreen> {
-    TimeOfDay? _alarmTime;
+  TimeOfDay? _alarmTime;
 
-    @override
-    void didChangeDependencies() {
-      super.didChangeDependencies();
-      final preferences = context.read<SettingsProvider>().preferences;
-      if (preferences != null && preferences.vaccinationAlarmTime != null) {
-        _alarmTime = preferences.vaccinationAlarmTime;
-      }
+  Future<void> _showUpgradeDialog() async {
+    await showDialog<void>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Premium Feature'),
+        content: const Text('Upgrade to Premium to export your data.'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('Not now'),
+          ),
+          ElevatedButton(
+            onPressed: () {
+              Navigator.pop(context);
+              Navigator.push(
+                context,
+                MaterialPageRoute(
+                  builder: (context) => const SubscriptionScreen(),
+                ),
+              );
+            },
+            child: const Text('View plans'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    final preferences = context.read<SettingsProvider>().preferences;
+    if (preferences != null && preferences.vaccinationAlarmTime != null) {
+      _alarmTime = preferences.vaccinationAlarmTime;
     }
+  }
+
   @override
   void initState() {
     super.initState();
@@ -89,14 +123,12 @@ class _SettingsScreenState extends State<SettingsScreen> {
 
     try {
       final client = Supabase.instance.client;
-      final batches = await client
-          .from('batches')
-          .select()
-          .eq('user_id', userId);
 
-      final batchIds = (batches as List)
-          .map((b) => b['id'] as String)
-          .toList();
+      // Fetch all data
+      final batches =
+          await client.from('batches').select().eq('user_id', userId);
+
+      final batchIds = (batches as List).map((b) => b['id'] as String).toList();
 
       final dailyRecords = batchIds.isEmpty
           ? <dynamic>[]
@@ -105,33 +137,226 @@ class _SettingsScreenState extends State<SettingsScreen> {
               .select()
               .inFilter('batch_id', batchIds);
 
-      final expenses = await client
-          .from('expenses')
-          .select()
-          .eq('user_id', userId);
+      final expenses =
+          await client.from('expenses').select().eq('user_id', userId);
 
-      final sales = await client
-          .from('sales')
-          .select()
-          .eq('user_id', userId);
+      final sales = await client.from('sales').select().eq('user_id', userId);
 
-      final exportData = {
-        'exported_at': DateTime.now().toIso8601String(),
-        'batches': batches,
-        'daily_records': dailyRecords,
-        'expenses': expenses,
-        'sales': sales,
-      };
+      // Create PDF
+      final pdf = pw.Document();
+      final dateFormat = DateFormat('MMM dd, yyyy');
+      final currencyFormat = NumberFormat.currency(symbol: '\$');
 
+      // Add title page
+      pdf.addPage(
+        pw.Page(
+          build: (context) => pw.Column(
+            crossAxisAlignment: pw.CrossAxisAlignment.start,
+            children: [
+              pw.Text(
+                'Smart Farm Data Export',
+                style:
+                    pw.TextStyle(fontSize: 24, fontWeight: pw.FontWeight.bold),
+              ),
+              pw.SizedBox(height: 10),
+              pw.Text('Exported: ${dateFormat.format(DateTime.now())}'),
+              pw.SizedBox(height: 20),
+              pw.Divider(),
+            ],
+          ),
+        ),
+      );
+
+      // Add Batches section
+      if (batches.isNotEmpty) {
+        pdf.addPage(
+          pw.Page(
+            build: (context) => pw.Column(
+              crossAxisAlignment: pw.CrossAxisAlignment.start,
+              children: [
+                pw.Text(
+                  'Batches (${batches.length})',
+                  style: pw.TextStyle(
+                      fontSize: 20, fontWeight: pw.FontWeight.bold),
+                ),
+                pw.SizedBox(height: 10),
+                pw.Table.fromTextArray(
+                  headers: [
+                    'Name',
+                    'Bird Type',
+                    'Quantity',
+                    'Start Date',
+                    'Status'
+                  ],
+                  data: batches
+                      .map((b) => [
+                            b['name'] ?? 'N/A',
+                            b['bird_type'] ?? 'N/A',
+                            '${b['actual_quantity'] ?? b['expected_quantity'] ?? 0}',
+                            b['start_date'] != null
+                                ? dateFormat
+                                    .format(DateTime.parse(b['start_date']))
+                                : 'N/A',
+                            b['status'] ?? 'N/A',
+                          ])
+                      .toList(),
+                  headerStyle: pw.TextStyle(fontWeight: pw.FontWeight.bold),
+                  cellAlignment: pw.Alignment.centerLeft,
+                ),
+              ],
+            ),
+          ),
+        );
+      }
+
+      // Add Daily Records section
+      if (dailyRecords.isNotEmpty) {
+        pdf.addPage(
+          pw.Page(
+            build: (context) => pw.Column(
+              crossAxisAlignment: pw.CrossAxisAlignment.start,
+              children: [
+                pw.Text(
+                  'Daily Records (${dailyRecords.length})',
+                  style: pw.TextStyle(
+                      fontSize: 20, fontWeight: pw.FontWeight.bold),
+                ),
+                pw.SizedBox(height: 10),
+                pw.Table.fromTextArray(
+                  headers: ['Date', 'Feed (kg)', 'Mortality', 'Notes'],
+                  data: dailyRecords
+                      .take(50)
+                      .map((r) => [
+                            r['date'] != null
+                                ? dateFormat.format(DateTime.parse(r['date']))
+                                : 'N/A',
+                            '${r['feed_consumed'] ?? 0}',
+                            '${r['mortality'] ?? 0}',
+                            (r['notes'] ?? '').toString().substring(
+                                0,
+                                (r['notes'] ?? '').toString().length > 30
+                                    ? 30
+                                    : (r['notes'] ?? '').toString().length),
+                          ])
+                      .toList(),
+                  headerStyle: pw.TextStyle(fontWeight: pw.FontWeight.bold),
+                  cellAlignment: pw.Alignment.centerLeft,
+                ),
+                if (dailyRecords.length > 50)
+                  pw.Text('... and ${dailyRecords.length - 50} more records'),
+              ],
+            ),
+          ),
+        );
+      }
+
+      // Add Expenses section
+      if (expenses.isNotEmpty) {
+        final totalExpenses = expenses.fold<double>(
+          0,
+          (sum, e) => sum + ((e['amount'] as num?)?.toDouble() ?? 0),
+        );
+
+        pdf.addPage(
+          pw.Page(
+            build: (context) => pw.Column(
+              crossAxisAlignment: pw.CrossAxisAlignment.start,
+              children: [
+                pw.Text(
+                  'Expenses (${expenses.length})',
+                  style: pw.TextStyle(
+                      fontSize: 20, fontWeight: pw.FontWeight.bold),
+                ),
+                pw.Text('Total: ${currencyFormat.format(totalExpenses)}'),
+                pw.SizedBox(height: 10),
+                pw.Table.fromTextArray(
+                  headers: ['Date', 'Category', 'Description', 'Amount'],
+                  data: expenses
+                      .take(50)
+                      .map((e) => [
+                            e['expense_date'] != null
+                                ? dateFormat
+                                    .format(DateTime.parse(e['expense_date']))
+                                : 'N/A',
+                            e['category'] ?? 'N/A',
+                            (e['description'] ?? 'N/A').toString().substring(
+                                0,
+                                (e['description'] ?? 'N/A').toString().length >
+                                        30
+                                    ? 30
+                                    : (e['description'] ?? 'N/A')
+                                        .toString()
+                                        .length),
+                            currencyFormat
+                                .format((e['amount'] as num?)?.toDouble() ?? 0),
+                          ])
+                      .toList(),
+                  headerStyle: pw.TextStyle(fontWeight: pw.FontWeight.bold),
+                  cellAlignment: pw.Alignment.centerLeft,
+                ),
+                if (expenses.length > 50)
+                  pw.Text('... and ${expenses.length - 50} more expenses'),
+              ],
+            ),
+          ),
+        );
+      }
+
+      // Add Sales section
+      if (sales.isNotEmpty) {
+        final totalSales = sales.fold<double>(
+          0,
+          (sum, s) => sum + ((s['total_amount'] as num?)?.toDouble() ?? 0),
+        );
+
+        pdf.addPage(
+          pw.Page(
+            build: (context) => pw.Column(
+              crossAxisAlignment: pw.CrossAxisAlignment.start,
+              children: [
+                pw.Text(
+                  'Sales (${sales.length})',
+                  style: pw.TextStyle(
+                      fontSize: 20, fontWeight: pw.FontWeight.bold),
+                ),
+                pw.Text('Total: ${currencyFormat.format(totalSales)}'),
+                pw.SizedBox(height: 10),
+                pw.Table.fromTextArray(
+                  headers: ['Date', 'Customer', 'Quantity', 'Amount'],
+                  data: sales
+                      .take(50)
+                      .map((s) => [
+                            s['sale_date'] != null
+                                ? dateFormat
+                                    .format(DateTime.parse(s['sale_date']))
+                                : 'N/A',
+                            s['customer_name'] ?? 'N/A',
+                            '${s['quantity'] ?? 0}',
+                            currencyFormat.format(
+                                (s['total_amount'] as num?)?.toDouble() ?? 0),
+                          ])
+                      .toList(),
+                  headerStyle: pw.TextStyle(fontWeight: pw.FontWeight.bold),
+                  cellAlignment: pw.Alignment.centerLeft,
+                ),
+                if (sales.length > 50)
+                  pw.Text('... and ${sales.length - 50} more sales'),
+              ],
+            ),
+          ),
+        );
+      }
+
+      // Save PDF
       final directory = await getTemporaryDirectory();
       final timestamp = DateTime.now().millisecondsSinceEpoch;
-      final file = File('${directory.path}/smart_farm_export_$timestamp.json');
-      await file.writeAsString(jsonEncode(exportData));
+      final file = File('${directory.path}/smart_farm_export_$timestamp.pdf');
+      await file.writeAsBytes(await pdf.save());
 
       await Share.shareXFiles(
         [XFile(file.path)],
         subject: 'Smart Farm Data Export',
-        text: 'Your Smart Farm data export is attached.',
+        text: 'Your Smart Farm data export (PDF) is attached.',
       );
     } catch (e) {
       if (!mounted) return;
@@ -170,7 +395,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
         title: const Text('Settings'),
         centerTitle: true,
         elevation: 0,
-        backgroundColor: Colors.white,
+        backgroundColor: Theme.of(context).scaffoldBackgroundColor,
       ),
       body: Consumer<SettingsProvider>(
         builder: (context, provider, _) {
@@ -199,7 +424,8 @@ class _SettingsScreenState extends State<SettingsScreen> {
                         fontWeight: FontWeight.bold,
                       ),
                     ),
-                    subtitle: Text(preferences?.farmName ?? 'Tap to edit profile'),
+                    subtitle:
+                        Text(preferences?.farmName ?? 'Tap to edit profile'),
                     trailing: const Icon(Icons.chevron_right),
                     onTap: () => context.push('/settings/profile'),
                   ),
@@ -230,7 +456,8 @@ class _SettingsScreenState extends State<SettingsScreen> {
                         onTap: () async {
                           final picked = await showTimePicker(
                             context: context,
-                            initialTime: _alarmTime ?? const TimeOfDay(hour: 6, minute: 0),
+                            initialTime: _alarmTime ??
+                                const TimeOfDay(hour: 6, minute: 0),
                           );
                           if (picked != null) {
                             setState(() {
@@ -239,7 +466,9 @@ class _SettingsScreenState extends State<SettingsScreen> {
                             // Save to preferences and reschedule alarm
                             final userId = SupabaseService().currentUserId;
                             if (userId != null) {
-                              context.read<SettingsProvider>().setVaccinationAlarmTime(picked, userId);
+                              context
+                                  .read<SettingsProvider>()
+                                  .setVaccinationAlarmTime(picked, userId);
                             }
                           }
                         },
@@ -283,7 +512,8 @@ class _SettingsScreenState extends State<SettingsScreen> {
                           items: ['light', 'dark', 'system']
                               .map((theme) => DropdownMenuItem(
                                     value: theme,
-                                    child: Text(theme[0].toUpperCase() + theme.substring(1)),
+                                    child: Text(theme[0].toUpperCase() +
+                                        theme.substring(1)),
                                   ))
                               .toList(),
                           onChanged: (value) {
@@ -383,6 +613,12 @@ class _SettingsScreenState extends State<SettingsScreen> {
                         subtitle: const Text('Download your batch data'),
                         trailing: const Icon(Icons.chevron_right),
                         onTap: () {
+                          final isPremium =
+                              context.read<SubscriptionProvider>().isPremium;
+                          if (!isPremium) {
+                            _showUpgradeDialog();
+                            return;
+                          }
                           _exportData();
                         },
                       ),

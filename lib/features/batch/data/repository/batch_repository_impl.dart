@@ -22,6 +22,7 @@ class BatchRepositoryImpl implements BatchRepository {
   }) async {
     try {
       final now = DateTime.now();
+      final folderSeed = now.microsecondsSinceEpoch;
       final data = {
         'name': name,
         'bird_type': _birdTypeToString(birdType),
@@ -29,6 +30,10 @@ class BatchRepositoryImpl implements BatchRepository {
         'expected_quantity': expectedQuantity,
         'purchase_cost': purchaseCost,
         'currency': currency,
+        'expense_log_folder_id': 'exp-folder-$folderSeed',
+        'expense_log_folder_title': '$name Expenses',
+        'sales_log_folder_id': 'sales-folder-$folderSeed',
+        'sales_log_folder_title': '$name Sales',
         'user_id': userId,
         'status': 'planned',
         'created_at': now.toIso8601String(),

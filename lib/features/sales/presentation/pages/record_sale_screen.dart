@@ -4,7 +4,6 @@ import 'package:provider/provider.dart';
 import '../../../../core/services/supabase_service.dart';
 import '../../domain/entities/sale.dart';
 import '../provider/sales_provider.dart';
-import '../../../batch/presentation/provider/batch_provider.dart';
 import '../../../settings/presentation/provider/settings_provider.dart';
 
 class RecordSaleScreen extends StatefulWidget {
@@ -138,11 +137,14 @@ class _RecordSaleScreenState extends State<RecordSaleScreen> {
       );
       Navigator.pop(context, sale);
 
-          // Reduce batch quantity if selling birds
-          if (_selectedType == SaleType.birds && mounted) {
-            final batchProvider = context.read<BatchProvider>();
-            await batchProvider.reduceBatchQuantity(widget.batchId, quantity);
-          }
+          // NOTE: Do NOT reduce batch quantity - actualQuantity should represent
+          // the birds actually received (not sold). Sales are tracked separately
+          // in the sales table and should not modify the batch.
+          //
+          // if (_selectedType == SaleType.birds && mounted) {
+          //   final batchProvider = context.read<BatchProvider>();
+          //   await batchProvider.reduceBatchQuantity(widget.batchId, quantity);
+          // }
     } else {
       final errorMsg = provider.errorMessage ?? 'Unknown error occurred';
       debugPrint('Record Sale Error: $errorMsg');

@@ -18,6 +18,10 @@ CREATE TABLE IF NOT EXISTS batches (
     end_date TIMESTAMPTZ,
     purchase_cost DECIMAL(10, 2),
     currency TEXT,
+    expense_log_folder_id TEXT,
+    expense_log_folder_title TEXT,
+    sales_log_folder_id TEXT,
+    sales_log_folder_title TEXT,
     user_id UUID NOT NULL REFERENCES auth.users(id) ON DELETE CASCADE,
     created_at TIMESTAMPTZ DEFAULT NOW(),
     updated_at TIMESTAMPTZ DEFAULT NOW()

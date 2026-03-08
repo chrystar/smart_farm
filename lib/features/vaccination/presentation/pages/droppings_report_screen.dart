@@ -87,6 +87,21 @@ class _DroppingsReportScreenState extends State<DroppingsReportScreen> {
   }
 
   Future<void> _submitReport() async {
+          // Debug: print before vet assignment
+          final client = Supabase.instance.client;
+          print('Fetching vets for assignment...');
+          final vetListRaw = await client
+              .from('vets')
+              .select('id')
+              .limit(10);
+          print('Vet list raw: $vetListRaw');
+          final vetList = vetListRaw is List ? vetListRaw : [];
+          print('Vet list parsed: $vetList');
+          if (vetList.isEmpty) {
+            throw Exception('No vets available for assignment');
+          }
+          final randomVet = (vetList..shuffle()).first;
+          print('Assigned vet id: ${randomVet['id']}');
     if (!_formKey.currentState!.validate()) {
       return;
     }
@@ -128,6 +143,19 @@ class _DroppingsReportScreenState extends State<DroppingsReportScreen> {
           .from('droppings-reports')
           .getPublicUrl(storagePath);
 
+      // Fetch all vets
+      final vetListRaw = await client
+          .from('vets')
+          .select('id')
+          .limit(10);
+
+      final vetList = vetListRaw is List ? vetListRaw : [];
+
+      if (vetList.isEmpty) {
+        throw Exception('No vets available for assignment');
+      }
+      final randomVet = (vetList..shuffle()).first;
+
       await client.from('droppings_reports').insert({
         'user_id': userId,
         'batch_id': widget.batchId,
@@ -137,6 +165,7 @@ class _DroppingsReportScreenState extends State<DroppingsReportScreen> {
             : _notesController.text.trim(),
         'image_url': imageUrl,
         'created_at': DateTime.now().toIso8601String(),
+        'assigned_vet_id': randomVet['id'],
       });
     } catch (e) {
       if (mounted) {

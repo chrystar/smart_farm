@@ -3,11 +3,13 @@ import 'package:intl/intl.dart';
 import 'package:provider/provider.dart';
 
 import 'package:smart_farm/features/batch/presentation/provider/batch_provider.dart';
+import 'package:smart_farm/features/batch/domain/entities/batch.dart';
 import 'package:smart_farm/features/sales/presentation/pages/record_sale_screen.dart';
+import 'package:smart_farm/features/sales/presentation/pages/sales_analysis_screen.dart';
 import '../../../../core/services/supabase_service.dart';
 import '../../domain/entities/sale.dart';
 import '../provider/sales_provider.dart';
-
+import '../../data/services/sales_export_service.dart';
 
 class SalesListScreen extends StatefulWidget {
   const SalesListScreen({super.key});
@@ -18,6 +20,7 @@ class SalesListScreen extends StatefulWidget {
 
 class _SalesListScreenState extends State<SalesListScreen> {
   PaymentStatus? _selectedPaymentFilter;
+  String? _selectedBatchId;
   bool _isSelectionMode = false;
   final Set<String> _selectedSaleIds = {};
 
@@ -33,6 +36,17 @@ class _SalesListScreenState extends State<SalesListScreen> {
     final userId = SupabaseService().currentUserId;
     if (userId != null) {
       context.read<SalesProvider>().loadSales(userId);
+      context.read<BatchProvider>().loadBatches(userId).then((_) {
+        if (!mounted) return;
+        if (_selectedBatchId == null) {
+          final batches = context.read<BatchProvider>().batches;
+          if (batches.isNotEmpty) {
+            setState(() {
+              _selectedBatchId = batches.first.id;
+            });
+          }
+        }
+      });
     }
   }
 
@@ -111,7 +125,7 @@ class _SalesListScreenState extends State<SalesListScreen> {
     await batchProvider.loadBatches(userId);
 
     final batches = batchProvider.batches;
-    
+
     if (!mounted) return;
 
     if (batches.isEmpty) {
@@ -121,6 +135,17 @@ class _SalesListScreenState extends State<SalesListScreen> {
           backgroundColor: Colors.orange,
         ),
       );
+      return;
+    }
+
+    if (_selectedBatchId != null) {
+      try {
+        final selectedBatch =
+            batches.firstWhere((batch) => batch.id == _selectedBatchId);
+        _openRecordSaleScreen(selectedBatch.id, selectedBatch.name);
+      } catch (_) {
+        _openRecordSaleScreen(batches.first.id, batches.first.name);
+      }
       return;
     }
 
@@ -138,7 +163,8 @@ class _SalesListScreenState extends State<SalesListScreen> {
                 final batch = batches[index];
                 return ListTile(
                   title: Text(batch.name),
-                  subtitle: Text('${batch.status.toString()} • ${batch.actualQuantity ?? 0} birds'),
+                  subtitle: Text(
+                      '${batch.status.toString()} • ${batch.actualQuantity ?? 0} birds'),
                   onTap: () {
                     Navigator.pop(context);
                     _openRecordSaleScreen(batch.id, batch.name);
@@ -282,13 +308,145 @@ class _SalesListScreenState extends State<SalesListScreen> {
     }
   }
 
+  void _showPendingPaymentsDialog() {
+    final provider = context.read<SalesProvider>();
+    final pendingSales = provider.sales
+        .where((s) => s.batchId == _selectedBatchId && s.paymentStatus == PaymentStatus.pending)
+        .toList();
+
+    if (pendingSales.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('No pending payments for this batch'),
+          backgroundColor: Colors.orange,
+        ),
+      );
+      return;
+    }
+
+    showDialog(
+      context: context,
+      builder: (context) {
+        return StatefulBuilder(
+          builder: (context, setDialogState) {
+            final selectedForPayment = <String>{};
+            
+            return AlertDialog(
+              title: Text('Mark Payments as Paid (${pendingSales.length})'),
+              content: SizedBox(
+                width: double.maxFinite,
+                height: 400,
+                child: ListView.builder(
+                  itemCount: pendingSales.length,
+                  itemBuilder: (context, index) {
+                    final sale = pendingSales[index];
+                    final isSelected = selectedForPayment.contains(sale.id);
+                    
+                    return CheckboxListTile(
+                      value: isSelected,
+                      onChanged: (checked) {
+                        setDialogState(() {
+                          if (checked == true) {
+                            selectedForPayment.add(sale.id);
+                          } else {
+                            selectedForPayment.remove(sale.id);
+                          }
+                        });
+                      },
+                      title: Text(sale.saleType.displayName),
+                      subtitle: Text(
+                        '${sale.currency} ${sale.totalAmount.toStringAsFixed(2)} • ${DateFormat('MMM dd').format(sale.saleDate)}',
+                      ),
+                      secondary: Column(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          Text(
+                            '${sale.quantity}',
+                            style: const TextStyle(
+                              fontSize: 16,
+                              fontWeight: FontWeight.bold,
+                            ),
+                          ),
+                          Text(
+                            'qty',
+                            style: TextStyle(
+                              fontSize: 10,
+                              color: Colors.grey[600],
+                            ),
+                          ),
+                        ],
+                      ),
+                    );
+                  },
+                ),
+              ),
+              actions: [
+                TextButton(
+                  onPressed: () => Navigator.pop(context),
+                  child: const Text('Cancel'),
+                ),
+                TextButton(
+                  onPressed: () {
+                    setDialogState(() {
+                      if (selectedForPayment.length == pendingSales.length) {
+                        selectedForPayment.clear();
+                      } else {
+                        selectedForPayment.addAll(pendingSales.map((s) => s.id));
+                      }
+                    });
+                  },
+                  child: Text(
+                    selectedForPayment.length == pendingSales.length
+                        ? 'Deselect All'
+                        : 'Select All',
+                  ),
+                ),
+                ElevatedButton(
+                  onPressed: selectedForPayment.isEmpty
+                      ? null
+                      : () async {
+                          Navigator.pop(context);
+                          await _markSelectedAsPaid(selectedForPayment.toList());
+                        },
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: Colors.green,
+                  ),
+                  child: Text('Mark ${selectedForPayment.length} as Paid'),
+                ),
+              ],
+            );
+          },
+        );
+      },
+    );
+  }
+
+  Future<void> _markSelectedAsPaid(List<String> saleIds) async {
+    final provider = context.read<SalesProvider>();
+    int successCount = 0;
+    
+    for (final saleId in saleIds) {
+      final success = await provider.updatePaymentStatus(saleId, PaymentStatus.paid);
+      if (success) successCount++;
+    }
+
+    if (mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('$successCount of ${saleIds.length} payments marked as paid'),
+          backgroundColor: successCount == saleIds.length ? Colors.green : Colors.orange,
+        ),
+      );
+      _loadSales();
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: Text(_isSelectionMode
-            ? '${_selectedSaleIds.length} selected'
-            : 'Sales'),
+        title: Text(
+            _isSelectionMode ? '${_selectedSaleIds.length} selected' : 'Sales'),
         centerTitle: true,
         elevation: 0,
         backgroundColor: Theme.of(context).scaffoldBackgroundColor,
@@ -305,8 +463,7 @@ class _SalesListScreenState extends State<SalesListScreen> {
                   onPressed: () {
                     setState(() {
                       final provider = context.read<SalesProvider>();
-                      if (_selectedSaleIds.length ==
-                          provider.sales.length) {
+                      if (_selectedSaleIds.length == provider.sales.length) {
                         _selectedSaleIds.clear();
                       } else {
                         _selectedSaleIds.addAll(
@@ -322,6 +479,23 @@ class _SalesListScreenState extends State<SalesListScreen> {
                 ),
               ]
             : [
+                IconButton(
+                  icon: const Icon(Icons.file_download),
+                  onPressed: () => _showExportMenu(context),
+                  tooltip: 'Export',
+                ),
+                IconButton(
+                  icon: const Icon(Icons.analytics),
+                  onPressed: () {
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                        builder: (context) => const SalesAnalysisScreen(),
+                      ),
+                    );
+                  },
+                  tooltip: 'Sales Analysis',
+                ),
                 IconButton(
                   icon: const Icon(Icons.add),
                   onPressed: () => _showAddSaleDialog(context),
@@ -356,102 +530,80 @@ class _SalesListScreenState extends State<SalesListScreen> {
             );
           }
 
-          final filteredSales = _selectedPaymentFilter == null
-              ? provider.sales
-              : provider.sales
-                  .where((s) => s.paymentStatus == _selectedPaymentFilter)
-                  .toList();
+            final batches = context.watch<BatchProvider>().batches;
+            final selectedExists =
+                batches.any((batch) => batch.id == _selectedBatchId);
+            final selectedBatchValue = selectedExists ? _selectedBatchId : null;
+
+            final filteredSales = _selectedPaymentFilter == null
+                ? provider.sales
+                : provider.sales
+                    .where((s) => s.paymentStatus == _selectedPaymentFilter)
+                    .toList();
+
+            final folderFilteredSales = selectedBatchValue == null
+                ? filteredSales
+                : filteredSales.where((s) => s.batchId == selectedBatchValue).toList();
 
           return Column(
             children: [
-              // Summary Cards
-              Padding(
-                padding: const EdgeInsets.all(16),
-                child: Row(
-                  children: [
-                    Expanded(
-                      child: _buildSummaryCard(
-                        'Total Sales',
-                        provider.sales.length.toString(),
-                        Icons.shopping_bag,
-                        Colors.blue,
-                      ),
-                    ),
-                    const SizedBox(width: 12),
-                    Expanded(
-                      child: _buildSummaryCard(
-                        'Pending',
-                        provider.getPendingPaymentsCount().toString(),
-                        Icons.schedule,
-                        Colors.orange,
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-
-              // Filter Chips
-              Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 16),
-                child: Wrap(
-                  spacing: 8,
-                  children: [
-                    FilterChip(
-                      label: const Text('All'),
-                      selected: _selectedPaymentFilter == null,
-                      onSelected: (selected) {
-                        setState(() => _selectedPaymentFilter = null);
-                      },
-                    ),
-                    ...PaymentStatus.values
-                        .map((status) => FilterChip(
-                      label: Text(status.displayName),
-                      selected: _selectedPaymentFilter == status,
-                      onSelected: (selected) {
-                        setState(
-                          () => _selectedPaymentFilter = selected ? status : null,
-                        );
-                      },
-                    ))
-                        .toList(),
-                  ],
-                ),
-              ),
-              const SizedBox(height: 16),
-
-              // Sales List
-              if (filteredSales.isEmpty)
-                Expanded(
-                  child: Center(
-                    child: Column(
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      children: [
-                        Icon(Icons.shopping_bag_outlined,
-                            size: 80, color: Colors.grey[300]),
-                        const SizedBox(height: 16),
-                        Text(
-                          'No sales recorded',
-                          style: TextStyle(
-                            fontSize: 18,
-                            color: Colors.grey[600],
-                            fontWeight: FontWeight.w500,
-                          ),
+              // Batch Cards Section
+              Expanded(
+                child: batches.isEmpty
+                    ? Center(
+                        child: Column(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: [
+                            Icon(Icons.inbox_outlined, size: 80, color: Colors.grey[300]),
+                            const SizedBox(height: 16),
+                            Text(
+                              'No Batches Yet',
+                              style: TextStyle(
+                                fontSize: 18,
+                                color: Colors.grey[600],
+                                fontWeight: FontWeight.w500,
+                              ),
+                            ),
+                            const SizedBox(height: 8),
+                            Text(
+                              'Create a batch first to record sales',
+                              style: TextStyle(color: Colors.grey[500]),
+                            ),
+                          ],
                         ),
-                      ],
-                    ),
-                  ),
-                )
-              else
-                Expanded(
-                  child: RefreshIndicator(
-                    onRefresh: () async => _loadSales(),
-                    child: _buildGroupedSalesList(filteredSales),
-                  ),
-                ),
+                      )
+                    : ListView(
+                        padding: const EdgeInsets.all(16),
+                        children: [
+                          ...batches.map((batch) {
+                            final isSelected = batch.id == _selectedBatchId;
+                            final batchSales = folderFilteredSales
+                                .where((s) => s.batchId == batch.id)
+                                .toList();
+                            return Padding(
+                              padding: const EdgeInsets.only(bottom: 12),
+                              child: _buildBatchCardWithSales(
+                                batch,
+                                batchSales,
+                                isSelected,
+                              ),
+                            );
+                          }),
+                        ],
+                      ),
+              ),
             ],
           );
         },
       ),
+      floatingActionButton: _selectedBatchId != null
+          ? FloatingActionButton.extended(
+              onPressed: () => _showPendingPaymentsDialog(),
+              icon: const Icon(Icons.payment),
+              label: const Text('Mark Paid'),
+              backgroundColor: Colors.green,
+            )
+          : null,
     );
   }
 
@@ -467,7 +619,8 @@ class _SalesListScreenState extends State<SalesListScreen> {
     final groupedEntries = grouped.entries
         .where((entry) => entry.key != null)
         .toList()
-      ..sort((a, b) => b.value.first.saleDate.compareTo(a.value.first.saleDate));
+      ..sort(
+          (a, b) => b.value.first.saleDate.compareTo(a.value.first.saleDate));
 
     return ListView(
       padding: const EdgeInsets.symmetric(horizontal: 16),
@@ -755,16 +908,15 @@ class _SalesListScreenState extends State<SalesListScreen> {
                       vertical: 6,
                     ),
                     decoration: BoxDecoration(
-                      color: _getStatusColor(sale.paymentStatus)
-                          .withOpacity(0.1),
+                      color:
+                          _getStatusColor(sale.paymentStatus).withOpacity(0.1),
                       borderRadius: BorderRadius.circular(12),
                     ),
                     child: Text(
                       sale.paymentStatus.displayName,
                       style: TextStyle(
                         fontWeight: FontWeight.w600,
-                        color:
-                            _getStatusColor(sale.paymentStatus),
+                        color: _getStatusColor(sale.paymentStatus),
                       ),
                     ),
                   ),
@@ -788,8 +940,7 @@ class _SalesListScreenState extends State<SalesListScreen> {
               ),
               if (sale.buyerName != null)
                 _buildDetailRow('Buyer', sale.buyerName!),
-              if (sale.notes != null)
-                _buildDetailRow('Notes', sale.notes!),
+              if (sale.notes != null) _buildDetailRow('Notes', sale.notes!),
               const SizedBox(height: 16),
               const Divider(),
               const SizedBox(height: 12),
@@ -803,15 +954,15 @@ class _SalesListScreenState extends State<SalesListScreen> {
                 spacing: 8,
                 children: PaymentStatus.values
                     .map((status) => ChoiceChip(
-                  label: Text(status.displayName),
-                  selected: sale.paymentStatus == status,
-                  onSelected: (selected) {
-                    if (selected) {
-                      _updatePaymentStatus(sale, status);
-                      Navigator.pop(context);
-                    }
-                  },
-                ))
+                          label: Text(status.displayName),
+                          selected: sale.paymentStatus == status,
+                          onSelected: (selected) {
+                            if (selected) {
+                              _updatePaymentStatus(sale, status);
+                              Navigator.pop(context);
+                            }
+                          },
+                        ))
                     .toList(),
               ),
               const SizedBox(height: 16),
@@ -877,5 +1028,413 @@ class _SalesListScreenState extends State<SalesListScreen> {
       case PaymentStatus.partiallyPaid:
         return Colors.blue;
     }
+  }
+
+  void _showExportMenu(BuildContext context) {
+    final provider = context.read<SalesProvider>();
+    final sales = _selectedPaymentFilter == null
+        ? provider.sales
+        : provider.sales
+            .where((s) => s.paymentStatus == _selectedPaymentFilter)
+            .toList();
+
+    if (sales.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('No sales data to export'),
+          backgroundColor: Colors.orange,
+        ),
+      );
+      return;
+    }
+
+    showModalBottomSheet(
+      context: context,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
+      ),
+      builder: (context) {
+        return SafeArea(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Padding(
+                padding: const EdgeInsets.all(16),
+                child: Row(
+                  children: [
+                    const Icon(Icons.file_download, color: Colors.green),
+                    const SizedBox(width: 12),
+                    const Text(
+                      'Export Sales Data',
+                      style: TextStyle(
+                        fontSize: 18,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              const Divider(height: 1),
+              ListTile(
+                leading: const Icon(Icons.picture_as_pdf, color: Colors.red),
+                title: const Text('Export as PDF Report'),
+                subtitle: Text('${sales.length} sales with summary'),
+                trailing: const Icon(Icons.arrow_forward_ios, size: 16),
+                onTap: () {
+                  Navigator.pop(context);
+                  _exportPDF(sales);
+                },
+              ),
+              ListTile(
+                leading: const Icon(Icons.table_chart, color: Colors.green),
+                title: const Text('Export as CSV'),
+                subtitle: Text('${sales.length} sales in spreadsheet format'),
+                trailing: const Icon(Icons.arrow_forward_ios, size: 16),
+                onTap: () {
+                  Navigator.pop(context);
+                  _exportCSV(sales);
+                },
+              ),
+              const Divider(height: 1),
+              ListTile(
+                leading: const Icon(Icons.share, color: Colors.blue),
+                title: const Text('Share PDF Report'),
+                subtitle: const Text('Share via email, WhatsApp, etc.'),
+                trailing: const Icon(Icons.arrow_forward_ios, size: 16),
+                onTap: () {
+                  Navigator.pop(context);
+                  _sharePDF(sales);
+                },
+              ),
+              ListTile(
+                leading: const Icon(Icons.share, color: Colors.orange),
+                title: const Text('Share CSV Data'),
+                subtitle: const Text('Share spreadsheet file'),
+                trailing: const Icon(Icons.arrow_forward_ios, size: 16),
+                onTap: () {
+                  Navigator.pop(context);
+                  _shareCSV(sales);
+                },
+              ),
+              const SizedBox(height: 16),
+            ],
+          ),
+        );
+      },
+    );
+  }
+
+  Future<void> _exportPDF(List<Sale> sales) async {
+    try {
+      final file = await SalesExportService.exportToPDF(
+        sales,
+        title: 'Sales Report',
+        startDate: sales.isNotEmpty
+            ? sales
+                .map((s) => s.saleDate)
+                .reduce((a, b) => a.isBefore(b) ? a : b)
+            : DateTime.now(),
+        endDate: sales.isNotEmpty
+            ? sales
+                .map((s) => s.saleDate)
+                .reduce((a, b) => a.isAfter(b) ? a : b)
+            : DateTime.now(),
+      );
+
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('PDF saved to: ${file.path}'),
+            backgroundColor: Colors.green,
+            duration: const Duration(seconds: 4),
+            action: SnackBarAction(
+              label: 'Share',
+              textColor: Colors.white,
+              onPressed: () => _sharePDF(sales),
+            ),
+          ),
+        );
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Export failed: ${e.toString()}'),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
+    }
+  }
+
+  Future<void> _exportCSV(List<Sale> sales) async {
+    try {
+      final file = await SalesExportService.exportToCSV(sales);
+
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('CSV saved to: ${file.path}'),
+            backgroundColor: Colors.green,
+            duration: const Duration(seconds: 4),
+            action: SnackBarAction(
+              label: 'Share',
+              textColor: Colors.white,
+              onPressed: () => _shareCSV(sales),
+            ),
+          ),
+        );
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Export failed: ${e.toString()}'),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
+    }
+  }
+
+  Future<void> _sharePDF(List<Sale> sales) async {
+    try {
+      await SalesExportService.exportAndSharePDF(
+        sales,
+        title: 'Sales Report',
+        startDate: sales.isNotEmpty
+            ? sales
+                .map((s) => s.saleDate)
+                .reduce((a, b) => a.isBefore(b) ? a : b)
+            : DateTime.now(),
+        endDate: sales.isNotEmpty
+            ? sales
+                .map((s) => s.saleDate)
+                .reduce((a, b) => a.isAfter(b) ? a : b)
+            : DateTime.now(),
+      );
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Share failed: ${e.toString()}'),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
+    }
+  }
+
+  Future<void> _shareCSV(List<Sale> sales) async {
+    try {
+      await SalesExportService.exportAndShareCSV(sales);
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Share failed: ${e.toString()}'),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
+    }
+  }
+
+  Widget _buildBatchCardWithSales(
+    Batch batch,
+    List<Sale> batchSales,
+    bool isSelected,
+  ) {
+    final totalAmount = batchSales.fold<double>(0, (sum, s) => sum + s.totalAmount);
+    final pendingCount = batchSales.where((s) => s.paymentStatus == PaymentStatus.pending).length;
+    final currency = batchSales.isNotEmpty ? batchSales.first.currency : '\$';
+
+    return Card(
+      elevation: 0,
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(16),
+        side: BorderSide(
+          color: isSelected ? Colors.green : Colors.grey[200]!,
+          width: isSelected ? 2 : 1,
+        ),
+      ),
+      child: Column(
+        children: [
+          InkWell(
+            onTap: () {
+              setState(() {
+                _selectedBatchId = _selectedBatchId == batch.id ? null : batch.id;
+              });
+            },
+            borderRadius: BorderRadius.circular(16),
+            child: Padding(
+              padding: const EdgeInsets.all(16),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  // Header row with batch name
+                  Row(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              batch.name,
+                              style: const TextStyle(
+                                fontSize: 18,
+                                fontWeight: FontWeight.w700,
+                                letterSpacing: -0.5,
+                              ),
+                            ),
+                            if (batch.breed != null) ...[
+                              const SizedBox(height: 4),
+                              Text(
+                                batch.breed!,
+                                style: TextStyle(
+                                  color: Colors.grey[600],
+                                  fontSize: 12,
+                                  fontWeight: FontWeight.w500,
+                                ),
+                              ),
+                            ],
+                          ],
+                        ),
+                      ),
+                      const SizedBox(width: 12),
+                      Icon(
+                        isSelected ? Icons.expand_less : Icons.expand_more,
+                        color: Colors.grey[600],
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 12),
+                  Container(
+                    height: 1,
+                    color: Colors.grey[200],
+                  ),
+                  const SizedBox(height: 12),
+                  // Sales summary
+                  Row(
+                    children: [
+                      Expanded(
+                        child: _buildInfoItem(
+                          icon: Icons.shopping_bag_outlined,
+                          label: 'Sales',
+                          value: '${batchSales.length}',
+                        ),
+                      ),
+                      const SizedBox(width: 16),
+                      Expanded(
+                        child: _buildInfoItem(
+                          icon: Icons.schedule,
+                          label: 'Pending',
+                          value: '$pendingCount',
+                        ),
+                      ),
+                      const SizedBox(width: 16),
+                      Expanded(
+                        child: _buildInfoItem(
+                          icon: Icons.attach_money,
+                          label: 'Total',
+                          value: '$currency${totalAmount.toStringAsFixed(2)}',
+                        ),
+                      ),
+                    ],
+                  ),
+                ],
+              ),
+            ),
+          ),
+          // Expanded sales list
+          if (isSelected && batchSales.isNotEmpty)
+            Container(
+              decoration: BoxDecoration(
+                color: Colors.grey[50],
+                borderRadius: const BorderRadius.only(
+                  bottomLeft: Radius.circular(16),
+                  bottomRight: Radius.circular(16),
+                ),
+              ),
+              child: Column(
+                children: [
+                  Container(
+                    height: 1,
+                    color: Colors.grey[200],
+                  ),
+                  ListView.builder(
+                    shrinkWrap: true,
+                    physics: const NeverScrollableScrollPhysics(),
+                    itemCount: batchSales.length,
+                    itemBuilder: (context, index) {
+                      final sale = batchSales[index];
+                      final isSaleSelected = _selectedSaleIds.contains(sale.id);
+                      return _buildSaleCard(sale, isSaleSelected);
+                    },
+                  ),
+                ],
+              ),
+            ),
+          if (isSelected && batchSales.isEmpty)
+            Container(
+              padding: const EdgeInsets.all(24),
+              decoration: BoxDecoration(
+                color: Colors.grey[50],
+                borderRadius: const BorderRadius.only(
+                  bottomLeft: Radius.circular(16),
+                  bottomRight: Radius.circular(16),
+                ),
+              ),
+              child: Center(
+                child: Column(
+                  children: [
+                    Icon(Icons.shopping_bag_outlined, size: 48, color: Colors.grey[400]),
+                    const SizedBox(height: 8),
+                    Text(
+                      'No sales yet',
+                      style: TextStyle(color: Colors.grey[600]),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildInfoItem({
+    required IconData icon,
+    required String label,
+    required String value,
+  }) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Row(
+          children: [
+            Icon(icon, size: 16, color: Colors.grey[600]),
+            const SizedBox(width: 6),
+            Text(
+              label,
+              style: TextStyle(
+                fontSize: 12,
+                color: Colors.grey[600],
+                fontWeight: FontWeight.w500,
+              ),
+            ),
+          ],
+        ),
+        const SizedBox(height: 4),
+        Text(
+          value,
+          style: const TextStyle(
+            fontSize: 16,
+            fontWeight: FontWeight.w700,
+          ),
+        ),
+      ],
+    );
   }
 }

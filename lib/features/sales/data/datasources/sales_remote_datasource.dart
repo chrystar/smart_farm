@@ -11,6 +11,25 @@ class SalesRemoteDataSource {
 
   Future<SaleModel> recordSale(Map<String, dynamic> saleData) async {
     try {
+      if (saleData['batch_id'] != null &&
+          (saleData['group_id'] == null || saleData['group_title'] == null)) {
+        try {
+          final batch = await supabaseClient
+              .from('batches')
+              .select('sales_log_folder_id, sales_log_folder_title, name')
+              .eq('id', saleData['batch_id'])
+              .maybeSingle();
+
+          if (batch != null) {
+            saleData['group_id'] ??= batch['sales_log_folder_id'];
+            saleData['group_title'] ??=
+                batch['sales_log_folder_title'] ?? '${batch['name']} Sales';
+          }
+        } catch (_) {
+          // Continue without folder metadata if lookup fails
+        }
+      }
+
       debugPrint('Inserting sale data: $saleData');
       final response = await supabaseClient
           .from('sales')

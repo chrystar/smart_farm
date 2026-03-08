@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
+import 'package:smart_farm/features/subscription/subscription_provider.dart';
+import 'package:smart_farm/features/subscription/subscription_screen.dart';
 import '../../domain/entities/vaccine_schedule.dart';
 import '../providers/vaccination_provider.dart';
 import '../pages/vaccination_schedule_page.dart';
@@ -22,6 +24,34 @@ class VaccinationTabWidget extends StatefulWidget {
 }
 
 class _VaccinationTabWidgetState extends State<VaccinationTabWidget> {
+  Future<void> _showUpgradeDialog() async {
+    await showDialog<void>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Premium Feature'),
+        content: const Text('Upgrade to Premium to report droppings.'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('Not now'),
+          ),
+          ElevatedButton(
+            onPressed: () {
+              Navigator.pop(context);
+              Navigator.push(
+                context,
+                MaterialPageRoute(
+                  builder: (context) => const SubscriptionScreen(),
+                ),
+              );
+            },
+            child: const Text('View plans'),
+          ),
+        ],
+      ),
+    );
+  }
+
   @override
   void initState() {
     super.initState();
@@ -84,6 +114,12 @@ class _VaccinationTabWidgetState extends State<VaccinationTabWidget> {
                 width: double.infinity,
                 child: ElevatedButton.icon(
                   onPressed: () {
+                    final isPremium =
+                        context.read<SubscriptionProvider>().isPremium;
+                    if (!isPremium) {
+                      _showUpgradeDialog();
+                      return;
+                    }
                     Navigator.push(
                       context,
                       MaterialPageRoute(
@@ -105,7 +141,7 @@ class _VaccinationTabWidgetState extends State<VaccinationTabWidget> {
               ),
             ),
             if (provider.schedules.isEmpty)
-             const Padding(
+              const Padding(
                 padding: EdgeInsets.all(16),
                 child: Column(
                   children: [
@@ -114,8 +150,8 @@ class _VaccinationTabWidgetState extends State<VaccinationTabWidget> {
                       size: 48,
                       color: Colors.grey,
                     ),
-                     SizedBox(height: 8),
-                     Text('Loading schedule...'),
+                    SizedBox(height: 8),
+                    Text('Loading schedule...'),
                   ],
                 ),
               )
@@ -125,30 +161,35 @@ class _VaccinationTabWidgetState extends State<VaccinationTabWidget> {
                   builder: (context) {
                     // Calculate current day once
                     final currentDay = widget.batchStartDate != null
-                        ? DateTime.now().difference(widget.batchStartDate!).inDays + 1
+                        ? DateTime.now()
+                                .difference(widget.batchStartDate!)
+                                .inDays +
+                            1
                         : null;
-                    
+
                     // Sort schedules: upcoming/in-progress first, then past
-                    final sortedSchedules = List<VaccineSchedule>.from(provider.schedules);
+                    final sortedSchedules =
+                        List<VaccineSchedule>.from(provider.schedules);
                     if (currentDay != null) {
                       sortedSchedules.sort((a, b) {
                         // Calculate end day using duration field
                         int getEndDay(VaccineSchedule schedule) {
                           return schedule.ageInDays + schedule.durationDays - 1;
                         }
-                        
+
                         final aEndDay = getEndDay(a);
                         final bEndDay = getEndDay(b);
                         final aIsPast = currentDay > aEndDay;
                         final bIsPast = currentDay > bEndDay;
-                        
+
                         if (aIsPast != bIsPast) {
                           return aIsPast ? 1 : -1; // Past items go to bottom
                         }
-                        return a.ageInDays.compareTo(b.ageInDays); // Otherwise sort by day
+                        return a.ageInDays
+                            .compareTo(b.ageInDays); // Otherwise sort by day
                       });
                     }
-                    
+
                     return ListView.builder(
                       padding: const EdgeInsets.symmetric(horizontal: 16),
                       itemCount: sortedSchedules.length > 3
@@ -172,8 +213,8 @@ class _VaccinationTabWidgetState extends State<VaccinationTabWidget> {
                 child: Text(
                   '+${provider.schedules.length - 3} more vaccines',
                   style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                    color: Colors.grey,
-                  ),
+                        color: Colors.grey,
+                      ),
                 ),
               ),
           ],
@@ -182,4 +223,3 @@ class _VaccinationTabWidgetState extends State<VaccinationTabWidget> {
     );
   }
 }
-

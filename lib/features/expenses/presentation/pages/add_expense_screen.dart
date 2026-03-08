@@ -9,7 +9,14 @@ import '../../domain/entities/expense.dart';
 import '../provider/expense_provider.dart';
 
 class AddExpenseScreen extends StatefulWidget {
-  const AddExpenseScreen({super.key});
+  final String? initialBatchId;
+  final String? initialFolderTitle;
+
+  const AddExpenseScreen({
+    super.key,
+    this.initialBatchId,
+    this.initialFolderTitle,
+  });
 
   @override
   State<AddExpenseScreen> createState() => _AddExpenseScreenState();
@@ -30,6 +37,7 @@ class _AddExpenseScreenState extends State<AddExpenseScreen> {
   @override
   void initState() {
     super.initState();
+    _selectedBatchId = widget.initialBatchId;
     WidgetsBinding.instance.addPostFrameCallback((_) => _loadDefaultCurrency());
   }
 
@@ -64,6 +72,16 @@ class _AddExpenseScreenState extends State<AddExpenseScreen> {
 
   Future<void> _saveExpense() async {
     if (!_formKey.currentState!.validate()) return;
+
+    if (_selectedBatchId == null || _selectedBatchId!.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Open an expense folder from a batch first'),
+          backgroundColor: Colors.orange,
+        ),
+      );
+      return;
+    }
 
     final userId = SupabaseService().currentUserId;
     if (userId == null) {
@@ -130,6 +148,30 @@ class _AddExpenseScreenState extends State<AddExpenseScreen> {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
+              if (widget.initialFolderTitle != null) ...[
+                Container(
+                  padding: const EdgeInsets.all(12),
+                  decoration: BoxDecoration(
+                    color: Colors.green.withOpacity(0.08),
+                    borderRadius: BorderRadius.circular(12),
+                    border: Border.all(color: Colors.green.withOpacity(0.25)),
+                  ),
+                  child: Row(
+                    children: [
+                      const Icon(Icons.folder, color: AppColors.primaryGreen),
+                      const SizedBox(width: 8),
+                      Expanded(
+                        child: Text(
+                          'Folder: ${widget.initialFolderTitle}',
+                          style: const TextStyle(fontWeight: FontWeight.w600),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                const SizedBox(height: 16),
+              ],
+
               Text('Keep a close track of your expenses to manage your farm effectively.',
                   style: TextStyle(fontSize: 14, color: Colors.grey[700]),
                   ),

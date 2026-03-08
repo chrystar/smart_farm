@@ -16,6 +16,10 @@ class Batch extends Equatable {
   final DateTime? endDate;
   final double? purchaseCost;
   final String? currency;
+  final String? expenseLogFolderId;
+  final String? expenseLogFolderTitle;
+  final String? salesLogFolderId;
+  final String? salesLogFolderTitle;
   final String userId;
   final DateTime createdAt;
   final DateTime updatedAt;
@@ -32,6 +36,10 @@ class Batch extends Equatable {
     this.endDate,
     this.purchaseCost,
     this.currency,
+    this.expenseLogFolderId,
+    this.expenseLogFolderTitle,
+    this.salesLogFolderId,
+    this.salesLogFolderTitle,
     required this.userId,
     required this.createdAt,
     required this.updatedAt,
@@ -77,6 +85,10 @@ class Batch extends Equatable {
     DateTime? endDate,
     double? purchaseCost,
     String? currency,
+    String? expenseLogFolderId,
+    String? expenseLogFolderTitle,
+    String? salesLogFolderId,
+    String? salesLogFolderTitle,
     String? userId,
     DateTime? createdAt,
     DateTime? updatedAt,
@@ -93,6 +105,11 @@ class Batch extends Equatable {
       endDate: endDate ?? this.endDate,
       purchaseCost: purchaseCost ?? this.purchaseCost,
       currency: currency ?? this.currency,
+        expenseLogFolderId: expenseLogFolderId ?? this.expenseLogFolderId,
+        expenseLogFolderTitle:
+          expenseLogFolderTitle ?? this.expenseLogFolderTitle,
+        salesLogFolderId: salesLogFolderId ?? this.salesLogFolderId,
+        salesLogFolderTitle: salesLogFolderTitle ?? this.salesLogFolderTitle,
       userId: userId ?? this.userId,
       createdAt: createdAt ?? this.createdAt,
       updatedAt: updatedAt ?? this.updatedAt,
@@ -111,6 +128,10 @@ class Batch extends Equatable {
         startDate,
         endDate,
         purchaseCost,
+        expenseLogFolderId,
+        expenseLogFolderTitle,
+        salesLogFolderId,
+        salesLogFolderTitle,
         userId,
         createdAt,
         updatedAt,

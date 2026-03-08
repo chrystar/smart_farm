@@ -2,6 +2,8 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:intl/intl.dart';
 import 'package:smart_farm/core/constants/theme/app_color.dart';
+import 'package:smart_farm/features/batch/presentation/provider/batch_provider.dart';
+import 'package:smart_farm/features/batch/domain/entities/batch.dart';
 import 'package:smart_farm/features/expenses/domain/entities/expense.dart';
 import 'package:smart_farm/features/expenses/presentation/provider/expense_provider.dart';
 import '../../../../core/services/supabase_service.dart';
@@ -21,7 +23,8 @@ class ExpensesScreen extends StatefulWidget {
 class _ExpensesScreenState extends State<ExpensesScreen> {
   bool _isSelectionMode = false;
   final Set<String> _selectedExpenseIds = {};
-  int _selectedTab = 0; // 0: All, 1: Grouped, 2: Ungrouped
+  String? _selectedBatchId;
+  String? _selectedBatchFolderTitle;
 
   @override
   void initState() {
@@ -35,30 +38,20 @@ class _ExpensesScreenState extends State<ExpensesScreen> {
     final userId = SupabaseService().currentUserId;
     if (userId != null) {
       context.read<ExpenseProvider>().loadExpenses(userId);
+      context.read<BatchProvider>().loadBatches(userId).then((_) {
+        if (!mounted) return;
+        if (_selectedBatchId == null) {
+          final batches = context.read<BatchProvider>().batches;
+          if (batches.isNotEmpty) {
+            setState(() {
+              _selectedBatchId = batches.first.id;
+              _selectedBatchFolderTitle =
+                  batches.first.expenseLogFolderTitle ?? '${batches.first.name} Expenses';
+            });
+          }
+        }
+      });
     }
-  }
-
-  Widget _buildTabButton(String label, int tabIndex) {
-    final isSelected = _selectedTab == tabIndex;
-    return GestureDetector(
-      onTap: () => setState(() => _selectedTab = tabIndex),
-      child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-        decoration: BoxDecoration(
-          color: isSelected
-              ? AppColors.primaryGreen
-              : Colors.grey[100],
-          borderRadius: BorderRadius.circular(8),
-        ),
-        child: Text(
-          label,
-          style: TextStyle(
-            color: isSelected ? Colors.black : Colors.black,
-            fontWeight: isSelected ? FontWeight.w600 : FontWeight.normal,
-          ),
-        ),
-      ),
-    );
   }
 
   Future<void> _generateReportForExpenses(
@@ -449,6 +442,15 @@ class _ExpensesScreenState extends State<ExpensesScreen> {
             );
           }
 
+          final batches = context.watch<BatchProvider>().batches;
+          final selectedExists =
+              batches.any((batch) => batch.id == _selectedBatchId);
+          final selectedBatchValue = selectedExists ? _selectedBatchId : null;
+          final filteredByBatch = provider.filteredExpenses
+              .where((expense) =>
+                  selectedBatchValue == null || expense.batchId == selectedBatchValue)
+              .toList();
+
           return Column(
             children: [
               // Search Bar
@@ -476,40 +478,17 @@ class _ExpensesScreenState extends State<ExpensesScreen> {
                 ),
               ),
 
-              // Tab Bar
-              SingleChildScrollView(
-                scrollDirection: Axis.horizontal,
-                child: Row(
-                  children: [
-                    Padding(
-                      padding: const EdgeInsets.symmetric(horizontal: 16),
-                      child: Row(
-                        children: [
-                          _buildTabButton('All', 0),
-                          const SizedBox(width: 12),
-                          _buildTabButton('Grouped', 1),
-                          const SizedBox(width: 12),
-                          _buildTabButton('Ungrouped', 2),
-                        ],
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-              const SizedBox(height: 8),
-
-              // Expenses List
+              // Batch Cards Section
               Expanded(
-                child: provider.filteredExpenses.isEmpty
+                child: batches.isEmpty
                     ? Center(
                         child: Column(
                           mainAxisAlignment: MainAxisAlignment.center,
                           children: [
-                            Icon(Icons.receipt_long_outlined,
-                                size: 80, color: Colors.grey[300]),
+                            Icon(Icons.inbox_outlined, size: 80, color: Colors.grey[300]),
                             const SizedBox(height: 16),
                             Text(
-                              'No Expenses Found',
+                              'No Batches Yet',
                               style: TextStyle(
                                 fontSize: 18,
                                 color: Colors.grey[600],
@@ -518,15 +497,31 @@ class _ExpensesScreenState extends State<ExpensesScreen> {
                             ),
                             const SizedBox(height: 8),
                             Text(
-                              provider.searchQuery.isNotEmpty
-                                  ? 'No expenses match your search'
-                                  : 'Tap + to add your first expense',
+                              'Create a batch first to log expenses',
                               style: TextStyle(color: Colors.grey[500]),
                             ),
                           ],
                         ),
                       )
-                    : _buildExpensesList(provider, _selectedTab),
+                    : ListView(
+                        padding: const EdgeInsets.only(left: 16, right: 16, bottom: 16),
+                        children: [
+                          ...batches.map((batch) {
+                            final isSelected = batch.id == _selectedBatchId;
+                            final batchExpenses = filteredByBatch
+                                .where((e) => e.batchId == batch.id)
+                                .toList();
+                            return Padding(
+                              padding: const EdgeInsets.only(bottom: 12),
+                              child: _buildBatchCardWithExpenses(
+                                batch,
+                                batchExpenses,
+                                isSelected,
+                              ),
+                            );
+                          }),
+                        ],
+                      ),
               ),
             ],
           );
@@ -534,10 +529,26 @@ class _ExpensesScreenState extends State<ExpensesScreen> {
       ),
       floatingActionButton: FloatingActionButton(
         backgroundColor: AppColors.primaryGreen,
+        foregroundColor: AppColors.primaryText,
         onPressed: () async {
+          if (_selectedBatchId == null) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              const SnackBar(
+                content: Text('Create a batch first to open an expense folder'),
+                backgroundColor: Colors.orange,
+              ),
+            );
+            return;
+          }
+
           await Navigator.push(
             context,
-            MaterialPageRoute(builder: (_) => const AddExpenseScreen()),
+            MaterialPageRoute(
+              builder: (_) => AddExpenseScreen(
+                initialBatchId: _selectedBatchId,
+                initialFolderTitle: _selectedBatchFolderTitle,
+              ),
+            ),
           );
           _loadExpenses();
         },
@@ -749,10 +760,10 @@ class _ExpensesScreenState extends State<ExpensesScreen> {
     );
   }
 
-  Widget _buildExpensesList(ExpenseProvider provider, int selectedTab) {
+  Widget _buildExpensesList(List<Expense> filteredExpenses, int selectedTab) {
     // Group expenses by groupTitle
     final Map<String?, List<Expense>> groupedByTitle = {};
-    for (final expense in provider.filteredExpenses) {
+    for (final expense in filteredExpenses) {
       groupedByTitle.putIfAbsent(expense.groupTitle, () => []).add(expense);
     }
 
@@ -764,7 +775,7 @@ class _ExpensesScreenState extends State<ExpensesScreen> {
 
     if (selectedTab == 0) {
       // All tab: show all as flat list
-      return _buildFlatExpensesList(provider.filteredExpenses);
+      return _buildFlatExpensesList(filteredExpenses);
     } else if (selectedTab == 1) {
       // Grouped tab: show only group cards
       return _buildGroupedExpensesList(groupedEntries);
@@ -1127,6 +1138,195 @@ class _ExpensesScreenState extends State<ExpensesScreen> {
         const SizedBox(height: 16),
       ];
     }).toList();
+  }
+
+  Widget _buildBatchCardWithExpenses(
+    Batch batch,
+    List<Expense> batchExpenses,
+    bool isSelected,
+  ) {
+    final totalAmount = batchExpenses.fold<double>(0, (sum, e) => sum + e.amount);
+    final currency = batchExpenses.isNotEmpty ? batchExpenses.first.currency : '\$';
+
+    return Card(
+      elevation: 0,
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(16),
+        side: BorderSide(
+          color: isSelected ? AppColors.primaryGreen : Colors.grey[200]!,
+          width: isSelected ? 2 : 1,
+        ),
+      ),
+      child: Column(
+        children: [
+          InkWell(
+            onTap: () {
+              setState(() {
+                _selectedBatchId = _selectedBatchId == batch.id ? null : batch.id;
+                _selectedBatchFolderTitle =
+                    batch.expenseLogFolderTitle ?? '${batch.name} Expenses';
+              });
+            },
+            borderRadius: BorderRadius.circular(16),
+            child: Padding(
+              padding: const EdgeInsets.all(16),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  // Header row with batch name
+                  Row(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              batch.name,
+                              style: const TextStyle(
+                                fontSize: 18,
+                                fontWeight: FontWeight.w700,
+                                letterSpacing: -0.5,
+                              ),
+                            ),
+                            if (batch.breed != null) ...[
+                              const SizedBox(height: 4),
+                              Text(
+                                batch.breed!,
+                                style: TextStyle(
+                                  color: Colors.grey[600],
+                                  fontSize: 12,
+                                  fontWeight: FontWeight.w500,
+                                ),
+                              ),
+                            ],
+                          ],
+                        ),
+                      ),
+                      const SizedBox(width: 12),
+                      Icon(
+                        isSelected ? Icons.expand_less : Icons.expand_more,
+                        color: Colors.grey[600],
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 12),
+                  Container(
+                    height: 1,
+                    color: Colors.grey[200],
+                  ),
+                  const SizedBox(height: 12),
+                  // Expense summary
+                  Row(
+                    children: [
+                      Expanded(
+                        child: _buildInfoItem(
+                          icon: Icons.receipt_long_outlined,
+                          label: 'Expenses',
+                          value: '${batchExpenses.length}',
+                        ),
+                      ),
+                      const SizedBox(width: 16),
+                      Expanded(
+                        child: _buildInfoItem(
+                          icon: Icons.attach_money,
+                          label: 'Total',
+                          value: '$currency${totalAmount.toStringAsFixed(2)}',
+                        ),
+                      ),
+                    ],
+                  ),
+                ],
+              ),
+            ),
+          ),
+          // Expanded expenses list
+          if (isSelected && batchExpenses.isNotEmpty)
+            Container(
+              decoration: BoxDecoration(
+                color: Colors.grey[50],
+                borderRadius: const BorderRadius.only(
+                  bottomLeft: Radius.circular(16),
+                  bottomRight: Radius.circular(16),
+                ),
+              ),
+              child: Column(
+                children: [
+                  Container(
+                    height: 1,
+                    color: Colors.grey[200],
+                  ),
+                  ListView.builder(
+                    shrinkWrap: true,
+                    physics: const NeverScrollableScrollPhysics(),
+                    itemCount: batchExpenses.length,
+                    itemBuilder: (context, index) {
+                      return _buildExpenseCard(batchExpenses[index]);
+                    },
+                  ),
+                ],
+              ),
+            ),
+          if (isSelected && batchExpenses.isEmpty)
+            Container(
+              padding: const EdgeInsets.all(24),
+              decoration: BoxDecoration(
+                color: Colors.grey[50],
+                borderRadius: const BorderRadius.only(
+                  bottomLeft: Radius.circular(16),
+                  bottomRight: Radius.circular(16),
+                ),
+              ),
+              child: Center(
+                child: Column(
+                  children: [
+                    Icon(Icons.receipt_long_outlined, size: 48, color: Colors.grey[400]),
+                    const SizedBox(height: 8),
+                    Text(
+                      'No expenses yet',
+                      style: TextStyle(color: Colors.grey[600]),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildInfoItem({
+    required IconData icon,
+    required String label,
+    required String value,
+  }) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Row(
+          children: [
+            Icon(icon, size: 16, color: Colors.grey[600]),
+            const SizedBox(width: 6),
+            Text(
+              label,
+              style: TextStyle(
+                fontSize: 12,
+                color: Colors.grey[600],
+                fontWeight: FontWeight.w500,
+              ),
+            ),
+          ],
+        ),
+        const SizedBox(height: 4),
+        Text(
+          value,
+          style: const TextStyle(
+            fontSize: 16,
+            fontWeight: FontWeight.w700,
+          ),
+        ),
+      ],
+    );
   }
 }
 
